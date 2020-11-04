@@ -1,0 +1,13 @@
+Write your assignment writeup in this file. Refer to the assignment PDF for details. Do not change this file name.
+
+
+1) Declare/discuss any aspects of your client or server code that are not working.  What are your intuitions about why things are not working?  What issues you already tried and ruled out?  Given more time, what would you try next?  Detailed answers here are critical to getting partial credit for malfunctioning programs.
+
+2) Any assumptions you made for things not described in the specifications.
+
+3) In a few sentences, describe how you tested that your code was working.
+
+4) What was the most challenging aspect of this assignment, and why?
+
+5) What variant/extension of this assignment would you like to try (e.g. a variant that is more powerful, more interesting, etc.)
+

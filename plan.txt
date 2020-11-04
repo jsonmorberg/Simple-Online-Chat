@@ -1,0 +1,11 @@
+Write you assignment plan here. Refer to the assignment PDF for details. Do not change this file name.
+
+
+1) Write a one paragraph summary of the program in your own words.  What is being asked of you?  What will you implement in this assignment?
+
+2) What you anticipate being the most challenging aspect of the assignment?
+
+3) Give a list of at least three resources you plan to draw from if you get stuck on something.
+
+4) What is your plan for meeting to finish this program (e.g. ``every Monday, Wednesday and Friday from 3pm-5pm until it's done.).
+
