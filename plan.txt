@@ -3,9 +3,17 @@ Write you assignment plan here. Refer to the assignment PDF for details. Do not 
 
 1) Write a one paragraph summary of the program in your own words.  What is being asked of you?  What will you implement in this assignment?
 
+In this assignment, we are being asked to implement a simple online chat application. This implementation will involve a server application and two client applications - an observer that recieves and displays a stream of messages (in real-time) and a participant which send messages. This application will support up to 255 participants and an equal amount of observers. A participant client can associate itself with a username while an observer can use an existing username to "log in" and view messages both public and private to the participant.
+
 2) What you anticipate being the most challenging aspect of the assignment?
+
+We haven't used poll() or select() much with C or with Sockets, so we anticipate using these to ensure the server reacts immediately might be tough. Filtering data through server as quick as possible might also be challenging to figure out. 
 
 3) Give a list of at least three resources you plan to draw from if you get stuck on something.
 
+The Professor, the TA, and the Textbook are resources we will draw from if stuck
+
 4) What is your plan for meeting to finish this program (e.g. ``every Monday, Wednesday and Friday from 3pm-5pm until it's done.).
+
+We will work together when time permits during the week, typically after 4:00pm and we will use Discord to stream whoever is currently programming.
 
