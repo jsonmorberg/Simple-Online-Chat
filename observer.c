@@ -1,6 +1,4 @@
 /* observer.c - code for observer. Do not rename this file */
-
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -15,6 +13,62 @@
 
 int checkWord(char* word){
 
+}
+
+void observer(int sd){
+    char response;
+    recv(sd, &response, sizeof(char), 0);
+
+    if(response == 'N'){
+        printf("Server is full");
+        return;
+    }
+
+    int flag = 0;
+    char buf[100];
+    printf("Enter a participant's username: ");
+
+    while(flag){
+        if(poll(&mypoll, 1, timeout)){
+
+            scanf("%s", buf);
+            if(checkWord(buf)){
+                uint8_t wordLength = strlen(buf);
+                send(sd, &wordLength, sizeof(uint8_t), 0);
+                send(sd, buf, wordLength, 0);
+
+                recv(sd, &response, sizeof(char), 0);
+                if(response == 'Y'){
+                    flag = 1;
+                }else if(response == 'T'){
+                    printf("That participant already has an observer. Enter a different participant's username: ");
+                }else if(response == 'N'){
+                    printf("There is no active participant with that username.\n");
+                    exit(EXIT_SUCCESS);
+                }
+
+            }else{
+               printf("Enter a participant's username: ");
+            }
+
+        }else{
+            printf("Time to enter a username has expired.\n");
+            exit(EXIT_SUCCESS);
+        }
+    }
+
+    for(;;){
+
+        uint16_t messageLength;
+        recv(sd, &messageLength, sizeof(uint16_t), 0);
+
+
+        messageLength = ntohl(messageLength);
+        char message[messageLength + 1];
+        message[messageLength] = '\0';
+        recv(sd, message, messageLength, 0);
+        printf("%s\n", message);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -79,59 +133,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    char response;
-    recv(sd, &response, sizeof(char), 0);
-
-    if(response == 'N'){
-        printf("Server is full");
-        exit(EXIT_SUCCESS);
-    }
-
-    int flag = 0;
-    char buf[100];
-    printf("Enter a participant's username: ");
-
-    while(flag){
-        if(poll(&mypoll, 1, timeout)){
-
-            scanf("%s", buf);
-            if(checkWord(buf)){
-                uint8_t wordLength = strlen(buf);
-                send(sd, &wordLength, sizeof(uint8_t), 0);
-                send(sd, buf, wordLength, 0);
-
-                recv(sd, &response, sizeof(char), 0);
-                if(response == 'Y'){
-                    flag = 1;
-                }else if(response == 'T'){
-                    printf("That participant already has an observer. Enter a different participant's username: ");
-                }else if(response == 'N'){
-                    printf("There is no active participant with that username.\n");
-                    exit(EXIT_SUCCESS);
-                }
-
-            }else{
-               printf("Enter a participant's username: ");
-            }
-
-        }else{
-            printf("Time to enter a username has expired.\n");
-            exit(EXIT_SUCCESS);
-        }
-    }
-
-    char message[1000];
-    for(;;){
-
-        uint16_t messageLength;
-        recv(sd, &messageLength, sizeof(uint16_t), 0);
-        messageLength = ntohl(messageLength);
-        recv(sd, message, messageLength, 0);
-
-        if(message[messageLength] != '\0'){
-            message[messageLength] = '\0';
-        }
-
-        printf("%s", message);
-    }
+    observer(sd);
+    close(sd);
+    exit(EXIT_SUCCESS);
 }

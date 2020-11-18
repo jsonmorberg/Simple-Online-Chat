@@ -1,5 +1,4 @@
-/* echo_client.c - code for example client program that uses TCP */
-
+/* participant.c - code for participant. Do not rename this file */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -12,21 +11,104 @@
 #include <netdb.h>
 #include <poll.h>
 
-/*------------------------------------------------------------------------
-* Program: echo_client
-*
-* Purpose: allocate a socket, connect to a server, and print all output
-*
-* Syntax: ./echo_client server_address server_port
-*
-* server_address - name of a computer on which server is executing
-* server_port    - protocol port number server is using
-*
-*------------------------------------------------------------------------
-*/
-
 int checkWord(char* word){
 
+}
+
+void participant(int sd){
+    char response;
+    recv(sd, &response, sizeof(char), 0);
+
+    if(response == 'N'){
+        printf("Server is full");
+        return;
+    }
+
+    int flag = 0;
+    char buf[100];
+    printf("Choose a username: ");
+
+    while(flag){
+        if(poll(&mypoll, 1, timeout)){
+
+            scanf("%s", buf);
+            if(checkWord(buf)){
+                uint8_t wordLength = strlen(buf);
+                send(sd, &wordLength, sizeof(uint8_t), 0);
+                send(sd, buf, wordLength, 0);
+
+                recv(sd, &response, sizeof(char), 0);
+                if(response == 'Y'){
+                    flag = 1;
+                }else if(response == 'T'){
+                    printf("Username is already taken. Choose a different username: ");
+                }else if(response == 'I'){
+                    printf("Username is invalid. Choose a valid username: ");
+                }
+
+            }else{
+                printf("Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores): ");
+            }
+
+        }else{
+            printf("Time to choose a username has expired.\n");
+            exit(EXIT_SUCCESS);
+        }
+    }
+
+    free(buf)
+    printf("Username accepted.");
+
+    char message[10000];
+    for(;;){
+
+        int privateFlag = 0;
+
+        printf("Enter message: ");
+        scanf("%s", message);
+
+        if(strlen(message) > 0){
+            if(message[0] == '@'){
+                privateFlag = 1;
+            }
+
+            if(strlen(message) > 1000){
+                char fragment[1000];
+
+                int index = 0;
+                for(int i = 0; i < strlen(message); i++){
+
+                    if(index == 0 && privateFlag == 1){
+                        if(message[0] != '@'){
+                            fragment[0] = '@';
+                            index++; 
+                        }
+
+                    }else{
+                        if(index != 1000){
+                            fragment[index] = message[i];
+                            index++;
+
+                        }else if(i = strlen(message)){
+                            uint16_t messageLength = htonl(strlen(fragment));
+                            send(sd, &messageLength, sizeof(uint16_t), 0);
+                            send(sd, fragment, strlen(fragment), 0);
+                        }else{
+                            index = 0;
+                            i--;
+                            uint16_t messageLength = htonl(strlen(fragment));
+                            send(sd, &messageLength, sizeof(uint16_t), 0);
+                            send(sd, fragment, strlen(fragment), 0);
+                        }
+                    }
+                }
+            }else{
+                uint16_t messageLength = htonl(strlen(message));
+                send(sd, &messageLength, sizeof(uint16_t), 0);
+                send(sd, message, strlen(message), 0);
+            }
+        }
+    }
 }
 
 int main(int argc, char **argv) {
@@ -90,102 +172,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "connect failed\n");
         exit(EXIT_FAILURE);
     }
-    
-    char response;
-    recv(sd, &response, sizeof(char), 0);
 
-    if(response == 'N'){
-        printf("Server is full");
-        exit(EXIT_SUCCESS);
-    }
-
-    int flag = 0;
-    char buf[100];
-    printf("Choose a username: ");
-
-    while(flag){
-        if(poll(&mypoll, 1, timeout)){
-
-            scanf("%s", buf);
-            if(checkWord(buf)){
-                uint8_t wordLength = strlen(buf);
-                send(sd, &wordLength, sizeof(uint8_t), 0);
-                send(sd, buf, wordLength, 0);
-
-                recv(sd, &response, sizeof(char), 0);
-                if(response == 'Y'){
-                    flag = 1;
-                }else if(response == 'T'){
-                    printf("Username is already taken. Choose a different username: ");
-                }else if(response == 'I'){
-                    printf("Username is invalid. Choose a valid username: ");
-                }
-
-            }else{
-                printf("Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores): ");
-            }
-
-        }else{
-            printf("Time to choose a username has expired.\n");
-            exit(EXIT_SUCCESS);
-        }
-    }
-
-    printf("Username accepted.");
-
-    char message[10000];
-    for(;;){
-
-        int privateFlag = 0;
-
-        printf("Enter message: ");
-        scanf("%s", message);
-
-        if(strlen(message) > 0){
-            if(message[0] == '@'){
-                privateFlag = 1;
-            }
-
-            if(strlen(message) > 1000){
-                char fragment[1000];
-
-                int index = 0;
-                for(int i = 0; i < strlen(message); i++){
-
-                    if(index == 0 && privateFlag == 1){
-                        if(message[0] != '@'){
-                            fragment[0] = '@';
-                            index++; 
-                        }
-
-                    }else{
-                        if(index != 1000){
-                            fragment[index] = message[i];
-                            index++;
-
-                        }else if(i = strlen(message)){
-                            uint16_t messageLength = htonl(strlen(fragment));
-                            send(sd, &messageLength, sizeof(uint16_t), 0);
-                            send(sd, fragment, strlen(fragment), 0);
-                        }else{
-                            index = 0;
-                            i--;
-                            uint16_t messageLength = htonl(strlen(fragment));
-                            send(sd, &messageLength, sizeof(uint16_t), 0);
-                            send(sd, fragment, strlen(fragment), 0);
-                        }
-                    }
-                }
-            }else{
-                uint16_t messageLength = htonl(strlen(message));
-                send(sd, &messageLength, sizeof(uint16_t), 0);
-                send(sd, message, strlen(message), 0);
-            }
-        }
-    }
-
-
-
-
-
+    participant(sd);
+    close(sd);
+    exit(EXIT_SUCCESS);
 }
