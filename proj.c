@@ -26,6 +26,6 @@ int main()
     char *i4 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     printf("%d, %d, %d, %d, %d\n", checkWord(valid), checkWord(i1), checkWord(i2), checkWord(i3), checkWord(i4));
-    printf("1, 0, 0, 0, 0\n");
+    printf("1, 0, 0, 0, 0\n")
     return(0); 
 } 

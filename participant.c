@@ -3,21 +3,34 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
+#include <ctype.h>
+int checkWord(char *word){
+    int len = strlen(word);
+    
+    if(len < 1 || len > 10){
+        return 0;
+    } 
 
-int checkWord(char* word){
-
+    for(int i = 0; i < len; i++){
+        char letter = word[i];
+        if(!isalpha(letter) && letter != '_' && !isdigit(letter)){
+            return 0;
+        }
+    }    
+    
+    return 1;
 }
 
 void participant(int sd){
 
-    struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
+    struct pollfd *mypoll;// = { STDIN_FILENO, POLLIN|POLLPRI }; 
     int timeout = 60 * 1000;
     
     char response;
@@ -28,22 +41,26 @@ void participant(int sd){
         return;
     }
 
-    int flag = 0;
+    int flag = 1;
     char buf[100];
     printf("Choose a username: ");
-
+    fflush(stdout);
     while(flag){
-        if(poll(&mypoll, 1, timeout)){
+        if(poll(mypoll, 1, timeout)){
 
             scanf("%s", buf);
             if(checkWord(buf)){
                 uint8_t wordLength = strlen(buf);
                 send(sd, &wordLength, sizeof(uint8_t), 0);
-                send(sd, buf, wordLength, 0);
-
-                recv(sd, &response, sizeof(char), 0);
-                if(response == 'Y'){
-                    flag = 1;
+                send(sd, &buf, wordLength, 0);
+                char resp;
+                printf("here\n");
+                printf("%d\n", mypoll[0].revents);
+                read(mypoll[0].fd, &resp, sizeof('Y'));
+                printf("here = %c\n", resp);
+                if(resp == 'Y'){
+                    flag = 0;
+                   
                 }else if(response == 'T'){
                     printf("Username is already taken. Choose a different username: ");
                 }else if(response == 'I'){
@@ -60,8 +77,8 @@ void participant(int sd){
         }
     }
 
-    free(buf)
-    printf("Username accepted.");
+    //free(buf);
+    printf("Username accepted.\n");
 
     char message[10000];
     for(;;){
@@ -93,7 +110,7 @@ void participant(int sd){
                             fragment[index] = message[i];
                             index++;
 
-                        }else if(i = strlen(message)){
+                        }else if(i == strlen(message)){
                             uint16_t messageLength = htonl(strlen(fragment));
                             send(sd, &messageLength, sizeof(uint16_t), 0);
                             send(sd, fragment, strlen(fragment), 0);
