@@ -16,6 +16,10 @@ int checkWord(char* word){
 }
 
 void observer(int sd){
+
+    struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
+    int timeout = 60 * 1000;
+
     char response;
     recv(sd, &response, sizeof(char), 0);
 
@@ -79,8 +83,7 @@ int main(int argc, char **argv) {
     int port; /* protocol port number */
     char *host; /* pointer to host name */
 
-    struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
-    int timeout = 60 * 1000;
+    
 
 
 

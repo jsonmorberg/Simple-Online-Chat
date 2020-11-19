@@ -16,6 +16,10 @@ int checkWord(char* word){
 }
 
 void participant(int sd){
+
+    struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
+    int timeout = 60 * 1000;
+    
     char response;
     recv(sd, &response, sizeof(char), 0);
 
