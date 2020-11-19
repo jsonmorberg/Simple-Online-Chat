@@ -19,7 +19,7 @@ void participant(int sd){
 
     struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
     int timeout = 60 * 1000;
-    
+
     char response;
     recv(sd, &response, sizeof(char), 0);
 
@@ -60,7 +60,6 @@ void participant(int sd){
         }
     }
 
-    free(buf)
     printf("Username accepted.");
 
     char message[10000];
