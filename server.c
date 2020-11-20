@@ -10,11 +10,197 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <ctype.h>
+#include <poll.h>
+#include <errno.h>
+#include "trie.c"
 
 //Constant for length and global word
-#define QLEN 5
-char* word;
+#define QLEN 6
 
+typedef struct participant_client{
+    char* username;
+    int sd;
+    int connectedToObserver;
+    int active;
+} participant_client;
+
+typedef struct observer_client{
+    char* username;
+    int sd;
+    int active;
+} observer_client;
+
+
+
+participant_client participants[255];
+observer_client observers[255];
+
+
+int updateFD(fd_set fd, int sd, int max_sd){
+    FD_SET(sd, &fd);
+    if(max_sd < (sd+1)){
+        return sd+1;
+    }else{
+        return max_sd;
+    }
+}
+
+int participant_connect(int participant_sd){
+    char response = 'Y';
+
+    struct sockaddr cad;
+    socklen_t alen = sizeof(cad);
+    int sd = accept(participant_sd, &cad, &alen);
+    if(sd < 0){
+        fprintf(stderr,"Error: Accept failed");
+        close(sd);
+        return -1;
+    }
+
+    int enough_room = 0;
+    int i = 0;
+    for(; i < 255; i++){
+        if(participants[i].active == 0){
+            enough_room = 1;
+            break;
+        }
+    }
+
+    if(!enough_room){
+        response = 'N';
+        send(sd, &response, sizeof(char), MSG_NOSIGNAL);
+        close(sd);
+        return -1;
+    }
+
+    participants[i].sd = sd;
+    participants[i].active = 1;
+
+    send(sd, &response, sizeof(char), 0);
+
+    struct pollfd fds;
+    fds.fd = sd;
+    fds.events = POLLIN;
+
+    int timeout = 60;
+    char username[255];
+
+    while(1){
+        int r = poll(&fds, 1, timeout*1000);
+        if(r < 0 && errno != EINTR){
+            fprintf(stderr,"Error: Poll failed");
+            close(sd);
+            return -1;
+        }else if(r == 0){
+            close(sd);
+            return -1;
+        }else if(fds.revents & POLLIN){
+            r = recv(sd, username, strlen(username), 0);
+            if(r < 0){
+                fprintf(stderr,"Error: Recv failed");
+                close(sd);
+                return -1;
+            }else if(r == 0){
+                close(sd);
+                return -1;
+            }else{
+                //CHECK IF NAME IS VALID
+                //
+                //THREE CASES:
+                //1.) INVALID USERNAME 'I' -> LOOP w/ SAME TIME
+                //2.) USERNAME TAKEN 'T' -> LOOP 
+                //3.) VALID 'Y' -> BREAK OUT OF LOOP
+            }
+        }
+    }
+
+    username[strlen(username)] = '\0';
+    participants[i].username = username;
+
+    char message[27];
+    snprintf(message, 26, "User %s has joined", username);
+
+    //SEND MESSAGE TO ALL USERS 
+    return 1;
+}
+
+
+
+int observer_connect(int observer_sd){
+    char response = 'Y';
+
+    struct sockaddr cad;
+    socklen_t alen = sizeof(cad);
+    int sd = accept(observer_sd, &cad, &alen);
+    if(sd < 0){
+        fprintf(stderr,"Error: Accept failed");
+        close(sd);
+        return -1;
+    }
+
+    int enough_room = 0;
+    int i = 0;
+    for(; i < 255; i++){
+        if(observers[i].active == 0){
+            enough_room = 1;
+            break;
+        }
+    }
+
+    if(!enough_room){
+        response = 'N';
+        send(sd, &response, sizeof(char), MSG_NOSIGNAL);
+        close(sd);
+        return -1;
+    }
+
+    observers[i].sd = sd;
+    observers[i].active = 1;
+
+    send(sd, &response, sizeof(char), 0);
+
+    struct pollfd fds;
+    fds.fd = sd;
+    fds.events = POLLIN;
+
+    int timeout = 60;
+    char username[255];
+
+    while(1){
+        int r = poll(&fds, 1, timeout*1000);
+        if(r < 0 && errno != EINTR){
+            fprintf(stderr,"Error: Poll failed");
+            close(sd);
+            return -1;
+        }else if(r == 0){
+            close(sd);
+            return -1;
+        }else if(fds.revents & POLLIN){
+            r = recv(sd, username, strlen(username), 0);
+            if(r < 0){
+                fprintf(stderr,"Error: Recv failed");
+                close(sd);
+                return -1;
+            }else if(r == 0){
+                close(sd);
+                return -1;
+            }else{
+                //CHECK IF NAME IS VALID
+                //
+                //THREE CASES:
+                //1.) INVALID USERNAME 'N' -> BREAK LOOP, FAILURE
+                //2.) USERNAME TAKEN 'T' -> LOOP 
+                //3.) VALID 'Y' -> BREAK OUT OF LOOP
+            }
+        }
+    }
+
+    char message[26];
+    snprintf(message, 26, "A new observer has joined");
+
+    //SEND MESSAGE TO ALL USERS 
+    return 1;
+}
 
 //Checks to see if the given character is in the mystery word
 int main(int argc, char* argv[]){
@@ -28,7 +214,6 @@ int main(int argc, char* argv[]){
     int optval = 1;  
     uint8_t guesses;
     struct timeval tv;
-
 
     int max_sd;
     fd_set readfds, writefds;
@@ -130,10 +315,15 @@ int main(int argc, char* argv[]){
     
     FD_ZERO(&readfds);
     FD_SET(participant_sd, &readfds);
-    max_sd = participant_sd;
-
     FD_ZERO(&writefds);
     FD_SET(observer_sd, &writefds);
+    max_sd = participant_sd;
+
+    for(int i = 0; i < 255; i++){
+        participants[i].connectedToObserver = 0;
+        participants[i].active = 0;
+        observers[i].active = 0;
+    }
     
     //Main server loop
     int retval;
@@ -156,13 +346,15 @@ int main(int argc, char* argv[]){
         }
 
         for(int i = 0; i < max_sd + 1; i++){
-            
+
             if(FD_ISSET(i, &wrk_readfds)){
 
                 if(i == participant_sd){
-                    // PARTICIPANT CONNECT STUFF
+                    int code = participant_connect(i);
+                    max_sd = updateFD(readfds, i, max_sd);
                 }else if(i == observer_sd){
-                    // OBSERVER CONNECT STUFF
+                    int code = observer_connect(i);
+                    updateFD(writefds, i, max_sd);
                 }
 
             }else{
