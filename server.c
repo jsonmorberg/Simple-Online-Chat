@@ -351,9 +351,15 @@ int main(int argc, char* argv[]){
 
                 if(i == participant_sd){
                     int code = participant_connect(i);
+                    if(code == -1){
+                        break;
+                    }
                     max_sd = updateFD(readfds, i, max_sd);
                 }else if(i == observer_sd){
                     int code = observer_connect(i);
+                    if(code == -1){
+                        break;
+                    }
                     updateFD(writefds, i, max_sd);
                 }
 
