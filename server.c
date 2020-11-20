@@ -17,23 +17,19 @@
 //Constant for length and global word
 #define QLEN 6
 
-typedef struct participant_client{
+typedef struct client{
     char* username;
     int sd;
     int connectedToObserver;
     int active;
-} participant_client;
-
-typedef struct observer_client{
-    char* username;
-    int sd;
-    int active;
-} observer_client;
+    int hasUsername;
+} client;
 
 
 
-participant_client participants[255];
-observer_client observers[255];
+
+client participants[255];
+client observers[255];
 
 
 int updateFD(fd_set fd, int sd, int max_sd){
@@ -322,7 +318,9 @@ int main(int argc, char* argv[]){
     for(int i = 0; i < 255; i++){
         participants[i].connectedToObserver = 0;
         participants[i].active = 0;
+        participants[i].hasUsername = 0;
         observers[i].active = 0;
+        observers[i].hasUsername = 0;
     }
     
     //Main server loop
@@ -345,7 +343,7 @@ int main(int argc, char* argv[]){
             exit(EXIT_FAILURE);
         }
 
-        for(int i = 0; i < max_sd + 1; i++){
+        for(int i = 3; i < max_sd + 1; i++){
 
             if(FD_ISSET(i, &wrk_readfds)){
 
@@ -364,7 +362,36 @@ int main(int argc, char* argv[]){
                 }
 
             }else{
-                // FIND THE INDEX AND CHECK IF A MESSAGE IS COMING THROUGH
+
+                //find index of existing participant/observer
+                int index;
+                int participant_flag = 0;
+                for(int j = 0; j < 255; j++){
+                    if(participants[j] == i){
+                        index = j;
+                        participant_flag = 1;
+                        break;
+                    }else if(observers[j] == i){
+                        index = j;
+                        break;
+                    }
+                }
+
+                if(participant_flag){
+                    if(participants[index].hasUsername){
+                        //RECIEVE MESSAGE
+                    }else{
+                        //GET USERNAME
+                    }
+                }else{
+                    if(observers[index].hasUsername){
+                        //ERROR, SHOULDN'T BE HERE
+                    }else{
+                        //GET USERNAME
+                    }
+                }
+
+
             }
         }
     }
