@@ -1,118 +1,145 @@
-/* server.c - code for server program. Do not rename this file */
+/* echo_server.c - code for example server program that uses TCP */
+#include <sys/select.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <ctype.h>
+#include <sys/time.h>
+#define QLEN 6 /* size of request queue */
+int visits = 0; /* counts client connections */
 
-//Constant for length and global word
-#define QLEN 5
-char* word;
+/*------------------------------------------------------------------------
+* Program: echo_server
+*
+* Purpose: allocate a socket and then repeatedly execute the following:
+* (1) wait for the next connection from a client
+* (2) send a short message to the client
+* (3) close the connection
+* (4) go back to step (1)
+*
+* Syntax: ./echo_server port
+*
+* port - protocol port number to use
+*
+*------------------------------------------------------------------------
+*/
 
+int main(int argc, char **argv) {
+    struct protoent *ptrp; /* pointer to a protocol table entry */
+    struct sockaddr_in sad; /* structure to hold server's address */
+    struct sockaddr_in cad; /* structure to hold client's address */
+    int sd, sd2; /* socket descriptors */
+    int port; /* protocol port number */
+    int alen; /* length of address */
+    int optval = 1; /* boolean value when we set socket option */
+    char buf[1000]; /* buffer for string the server sends */
 
-//Checks to see if the given character is in the mystery word
-int main(int argc, char* argv[]){
+    int max_sd;
+    fd_set readfds, writefds;
+    fd_set wrk_readfds, wrk_writefds;
 
-    //variables to store network info
-    struct protoent *ptrp; 
-    struct sockaddr_in sad; 
-    struct sockaddr_in cad; 
-    int sd, sd2; 
-    int port;
-    int alen; 
-    int optval = 1;  
-    uint8_t guesses;
+    struct timeval tv;
 
-    //Check # of arguments
-    if(argc != 3){
-        fprintf(stderr,"Error: Wrong number of arguments\n");
-        fprintf(stderr,"usage:\n");
-        fprintf(stderr,"./server server_port guesses secret_word\n");
+    if (argc != 2) {
+        fprintf(stderr, "Error: Wrong number of arguments\n");
+        fprintf(stderr, "usage:\n");
+        fprintf(stderr, "./server server_port\n");
         exit(EXIT_FAILURE);
     }
 
-    //Check if guess # is valid
-    uint8_t port2 = atoi(argv[2]);
+    memset((char *) &sad, 0, sizeof(sad)); /* clear sockaddr structure */
+    sad.sin_family = AF_INET; /* set family to Internet */
+    sad.sin_addr.s_addr = INADDR_ANY; /* set the local IP address */
 
-    //Check if the word is proper length
-   
-    //clear sockaddr struct and set family & Ip address
-    memset((char *)&sad,0,sizeof(sad)); 
-    sad.sin_family = AF_INET; 
-    sad.sin_addr.s_addr = INADDR_ANY;
 
-    //Check to see if port # is valid
-    port = atoi(argv[1]); 
-    if (port > 0) { 
-        sad.sin_port = htons((u_short)port); 
-    } else {  
-        fprintf(stderr,"Error: Bad port number %s\n",argv[1]); 
-        exit(EXIT_FAILURE);
-    } 
-
-    //Map TCP transport protocol
-    if ( ((long int)(ptrp = getprotobyname("tcp"))) == 0) { 
-        fprintf(stderr, "Error: Cannot map \"tcp\" to protocol number"); 
+    port = atoi(argv[1]); /* convert argument to binary */
+    if (port > 0) { /* test for illegal value */
+        sad.sin_port = htons((u_short) port);
+    } else { /* print error message and exit */
+        fprintf(stderr, "Error: Bad port number %s\n", argv[1]);
         exit(EXIT_FAILURE);
     }
 
-    //Create socket 
-    sd = socket(PF_INET, SOCK_STREAM, ptrp->p_proto); 
+    /* Map TCP transport protocol name to protocol number */
+    if (((long int) (ptrp = getprotobyname("tcp"))) == 0) {
+        fprintf(stderr, "Error: Cannot map \"tcp\" to protocol number");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Create a socket */
+    sd = socket(PF_INET, SOCK_STREAM, ptrp->p_proto);
     if (sd < 0) {
-        fprintf(stderr, "Error: Socket creation failed\n"); 
-        exit(EXIT_FAILURE); 
-    } 
+        fprintf(stderr, "Error: Socket creation failed\n");
+        exit(EXIT_FAILURE);
+    }
 
-    //Set port to be reused
-    if( setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0 ) { 
-        fprintf(stderr, "Error: Setting socket option failed\n"); 
-        exit(EXIT_FAILURE); 
-    } 
 
-    //Bind local addr to socket
-    if (bind(sd, (struct sockaddr *)&sad, sizeof(sad)) < 0) { 
-        fprintf(stderr,"Error: Bind failed\n"); 
-        exit(EXIT_FAILURE); 
-    } 
+    /* Allow reuse of port - avoid "Bind failed" issues */
+    if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+        fprintf(stderr, "Error Setting socket option failed\n");
+        exit(EXIT_FAILURE);
+    }
 
-    //Set queue length
-    if (listen(sd, QLEN) < 0) { 
-        fprintf(stderr,"Error: Listen failed\n"); 
-        exit(EXIT_FAILURE); 
-    } 
+    /* Bind a local address to the socket */
+    if (bind(sd, (struct sockaddr *) &sad, sizeof(sad)) < 0) {
+        fprintf(stderr, "Error: Bind failed\n");
+        exit(EXIT_FAILURE);
+    }
 
-    //Main server loop
-    while(1){
+    /* Specify size of request queue */
+    if (listen(sd, QLEN) < 0) {
+        fprintf(stderr, "Error: Listen failed\n");
+        exit(EXIT_FAILURE);
+    }
 
-        alen = sizeof(cad);
+    FD_ZERO(&readfds);
+    FD_SET(sd, &readfds);
 
-        //Accept connection
-        if ((sd2=accept(sd, (struct sockaddr *)&cad, &alen)) < 0) { 
-            fprintf(stderr, "Error: Accept failed\n"); 
-            exit(EXIT_FAILURE); 
+    FD_ZERO(&writefds);
+
+    max_sd = sd + 1 ;
+
+    /* Main server loop - accept and handle requests */
+    int ret;
+    while (1) {
+
+        // Initial the set of addresses with sockets that you want to monitor to know when they are ready to recv/accept.
+        // select() modifies the set of addresses given to it, so we need to reset that set again.
+        FD_ZERO(&wrk_readfds);
+        for (int i = 0; i < max_sd; ++i) {
+            if (FD_ISSET(i, &readfds)) {
+                FD_SET(i, &wrk_readfds);
+            }
         }
-        //=======================================
-        //server full or not
-        //TODO add yes or no logic
-        char openSpace = 'Y';
-        send(sd2,&openSpace, sizeof('Y'), 0);
-        //=======================================
-        //check username logic
-        uint8_t userLength;
-        char  username[11];
-        recv(sd2, &userLength, sizeof(uint8_t), 0);
-        recv(sd2, username, userLength, 0);
-        username[userLength] = '\0';
-        printf("%s\n",username);
-        char userValid = 'Y';
-        send(sd2, &userValid, sizeof('Y'), 0);
-        printf("here\n");
-        close(sd2); 
+
+
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+
+        ret = select(max_sd + 1, &wrk_readfds, NULL, NULL, &tv);
+        if (ret == -1) {
+            fprintf(stderr, "Error: select() failed. %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        } else if (ret == 0) {
+            // nothing interesting happened on any of the sockets.
+            continue;
+        }
+        if (FD_ISSET(sd, &wrk_readfds)) {
+            alen = sizeof(cad);
+            if ((sd2 = accept(sd, (struct sockaddr *) &cad, &alen)) < 0) {
+                fprintf(stderr, "Error: Accept failed\n");
+                exit(EXIT_FAILURE);
+            }
+            visits++;
+            sprintf(buf, "This server has been contacted %d time%s\n", visits, visits == 1 ? "." : "s.");
+            send(sd2, buf, strlen(buf), 0);
+            close(sd2);
+        }
     }
 }
 
