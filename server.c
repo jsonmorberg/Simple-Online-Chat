@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <poll.h>
 #include <errno.h>
+#include <time.h>
 #include "trie.c"
 
 //Constant for length and global word
@@ -20,9 +21,11 @@
 typedef struct client{
     char* username;
     int sd;
-    int connectedToObserver;
+    int connectedObserver;
+    int observerIndex;
     int active;
     int hasUsername;
+    time_t time;
 } client;
 
 
@@ -30,16 +33,6 @@ typedef struct client{
 
 client participants[255];
 client observers[255];
-
-
-int updateFD(fd_set fd, int sd, int max_sd){
-    FD_SET(sd, &fd);
-    if(max_sd < (sd+1)){
-        return sd+1;
-    }else{
-        return max_sd;
-    }
-}
 
 int participant_connect(int participant_sd){
     char response = 'Y';
@@ -69,55 +62,16 @@ int participant_connect(int participant_sd){
         return -1;
     }
 
+    time_t current;
+    time(&current);
+
+    participants[i].time = (time_t)time;
     participants[i].sd = sd;
     participants[i].active = 1;
 
     send(sd, &response, sizeof(char), 0);
+    return sd;
 
-    struct pollfd fds;
-    fds.fd = sd;
-    fds.events = POLLIN;
-
-    int timeout = 60;
-    char username[255];
-
-    while(1){
-        int r = poll(&fds, 1, timeout*1000);
-        if(r < 0 && errno != EINTR){
-            fprintf(stderr,"Error: Poll failed");
-            close(sd);
-            return -1;
-        }else if(r == 0){
-            close(sd);
-            return -1;
-        }else if(fds.revents & POLLIN){
-            r = recv(sd, username, strlen(username), 0);
-            if(r < 0){
-                fprintf(stderr,"Error: Recv failed");
-                close(sd);
-                return -1;
-            }else if(r == 0){
-                close(sd);
-                return -1;
-            }else{
-                //CHECK IF NAME IS VALID
-                //
-                //THREE CASES:
-                //1.) INVALID USERNAME 'I' -> LOOP w/ SAME TIME
-                //2.) USERNAME TAKEN 'T' -> LOOP 
-                //3.) VALID 'Y' -> BREAK OUT OF LOOP
-            }
-        }
-    }
-
-    username[strlen(username)] = '\0';
-    participants[i].username = username;
-
-    char message[27];
-    snprintf(message, 26, "User %s has joined", username);
-
-    //SEND MESSAGE TO ALL USERS 
-    return 1;
 }
 
 
@@ -150,52 +104,15 @@ int observer_connect(int observer_sd){
         return -1;
     }
 
+    time_t current;
+    time(&current);
+
+    observers[i].time = (time_t)time;
     observers[i].sd = sd;
     observers[i].active = 1;
-
     send(sd, &response, sizeof(char), 0);
 
-    struct pollfd fds;
-    fds.fd = sd;
-    fds.events = POLLIN;
-
-    int timeout = 60;
-    char username[255];
-
-    while(1){
-        int r = poll(&fds, 1, timeout*1000);
-        if(r < 0 && errno != EINTR){
-            fprintf(stderr,"Error: Poll failed");
-            close(sd);
-            return -1;
-        }else if(r == 0){
-            close(sd);
-            return -1;
-        }else if(fds.revents & POLLIN){
-            r = recv(sd, username, strlen(username), 0);
-            if(r < 0){
-                fprintf(stderr,"Error: Recv failed");
-                close(sd);
-                return -1;
-            }else if(r == 0){
-                close(sd);
-                return -1;
-            }else{
-                //CHECK IF NAME IS VALID
-                //
-                //THREE CASES:
-                //1.) INVALID USERNAME 'N' -> BREAK LOOP, FAILURE
-                //2.) USERNAME TAKEN 'T' -> LOOP 
-                //3.) VALID 'Y' -> BREAK OUT OF LOOP
-            }
-        }
-    }
-
-    char message[26];
-    snprintf(message, 26, "A new observer has joined");
-
-    //SEND MESSAGE TO ALL USERS 
-    return 1;
+    return sd;
 }
 
 //Checks to see if the given character is in the mystery word
@@ -211,7 +128,7 @@ int main(int argc, char* argv[]){
     uint8_t guesses;
     struct timeval tv;
 
-    int max_sd;
+    int max_fd;
     fd_set readfds, writefds;
     fd_set wrk_readfds, wrk_writefds;
 
@@ -311,12 +228,11 @@ int main(int argc, char* argv[]){
     
     FD_ZERO(&readfds);
     FD_SET(participant_sd, &readfds);
-    FD_ZERO(&writefds);
-    FD_SET(observer_sd, &writefds);
-    max_sd = participant_sd;
+    FD_SET(observer_sd, &readfds);
+    max_fd = participant_sd > observer_sd ? participant_sd : observer_sd;
 
     for(int i = 0; i < 255; i++){
-        participants[i].connectedToObserver = 0;
+        participants[i].connectedObserver = 0;
         participants[i].active = 0;
         participants[i].hasUsername = 0;
         observers[i].active = 0;
@@ -328,70 +244,86 @@ int main(int argc, char* argv[]){
     while(1){
 
         FD_ZERO(&wrk_readfds);
-        for (int i = 0; i < max_sd; ++i) {
-            if (FD_ISSET(i, &readfds)) {
-                FD_SET(i, &wrk_readfds);
-            }
-        }
+        memcpy(&wrk_readfds, &readfds, sizeof(fd_set));
 
         tv.tv_sec = 1;
         tv.tv_usec = 0;
 
-        retval = select(max_sd + 1, &wrk_readfds, NULL, NULL, &tv);
+        retval = select(max_fd + 1, &wrk_readfds, NULL, NULL, &tv);
         if(retval == -1){
-            fprintf(stderr,"Error: Read failed\n"); 
+            fprintf(stderr,"Error: select(2) error"); 
             exit(EXIT_FAILURE);
+
+        } else if (retval == 0){
+
+            for(int i = 0; i < 255; i++){
+
+                time_t current;
+                time(&current);
+                if((participants[i].active) && (participants[i].time > 0) && (difftime(current, participants[i].time) > 60)){
+                    char message[25];
+                    snprintf(message, 24, "User %s has left", participants[i].username);
+                    //SEND TO ALL
+                    FD_CLR(participants[i].sd, &readfds);
+                    close(participants[i].sd);
+                    participants[i].sd = 0;
+                    participants[i].time = 0;
+                    participants[i].active = 0;
+
+                }else if((observers[i].active) && (observers[i].time > 0) && (difftime(current, observers[i].time) > 60)){
+                    FD_CLR(observers[i].sd, &readfds);
+                    close(observers[i].sd);
+                    observers[i].sd = 0;
+                    observers[i].time = 0;
+                    observers[i].active = 0;
+                }
+            }
         }
 
-        for(int i = 3; i < max_sd + 1; i++){
+        if(FD_ISSET(participant_sd, &wrk_readfds)){
+            int code = participant_connect(participant_sd);
+            if(code != -1){
+                max_fd = code > max_fd ? code : max_fd;
+            }
+        }
 
-            if(FD_ISSET(i, &wrk_readfds)){
+        if(FD_ISSET(observer_sd, &wrk_readfds)){
+            int code = observer_connect(observer_sd);
+            if(code != -1){
+                max_fd = code > max_fd ? code : max_fd;
+            }
+        }
 
-                if(i == participant_sd){
-                    int code = participant_connect(i);
-                    if(code == -1){
-                        break;
-                    }
-                    max_sd = updateFD(readfds, i, max_sd);
-                }else if(i == observer_sd){
-                    int code = observer_connect(i);
-                    if(code == -1){
-                        break;
-                    }
-                    updateFD(writefds, i, max_sd);
+        //skip over the first 3 fds (stdin, stdout, stderr)
+        for(int i = 3; i < max_fd + 1; i++){
+
+
+            //find index of existing participants/observers
+            int index;
+            int participant_flag = 0;
+            for(int j = 0; j < 255; j++){
+                if(participants[j].sd == i){
+                    index = j;
+                    participant_flag = 1;
+                    break;
+                }else if(observers[j].sd == i){
+                    index = j;
+                    break;
                 }
+            }
 
-            }else{
-
-                //find index of existing participant/observer
-                int index;
-                int participant_flag = 0;
-                for(int j = 0; j < 255; j++){
-                    if(participants[j] == i){
-                        index = j;
-                        participant_flag = 1;
-                        break;
-                    }else if(observers[j] == i){
-                        index = j;
-                        break;
-                    }
-                }
-
-                if(participant_flag){
-                    if(participants[index].hasUsername){
-                        //RECIEVE MESSAGE
-                    }else{
-                        //GET USERNAME
-                    }
+            if(participant_flag){
+                if(participants[index].hasUsername){
+                    //RECIEVE MESSAGE
                 }else{
-                    if(observers[index].hasUsername){
-                        //ERROR, SHOULDN'T BE HERE
-                    }else{
-                        //GET USERNAME
-                    }
+                    //GET USERNAME
                 }
-
-
+            }else{
+                if(observers[index].hasUsername){
+                    //ERROR, SHOULDN'T BE HERE
+                }else{
+                    //GET USERNAME
+                }
             }
         }
     }
