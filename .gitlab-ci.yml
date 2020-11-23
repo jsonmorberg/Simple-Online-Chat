@@ -2,8 +2,29 @@ image: gcc
 
 stages:
   - compile
+  - test
 
 compile:
   stage: compile
   script:
     - make
+
+participant:
+  stage: test
+  script:
+    - mkdir test_tmp
+    - cp /home/cs367/p3/*.py test_tmp/
+    - python3 test_tmp/mod_c.py participant.c
+    - make
+    - cd test_tmp
+    - pytest --tb=short -v --color=yes test_par.py
+
+observer:
+  stage: test
+  script:
+    - mkdir test_tmp
+    - cp /home/cs367/p3/*.py test_tmp/
+    - python3 test_tmp/mod_c.py observer.c
+    - make
+    - cd test_tmp
+    - pytest --tb=short -v --color=yes test_obs.py
