@@ -94,10 +94,38 @@ void participant(int sd){
 
         printf("Enter message: ");
         scanf("%s", message);
-  
-        uint16_t messageLength = htons(strlen(message));
-        send(sd, &messageLength, sizeof(uint16_t), MSG_NOSIGNAL);
-        send(sd, message, strlen(message), MSG_NOSIGNAL);
+
+        if(strlen(message) > 1000){
+            //fragment message into sizes of 1000 MAX
+            
+            char fragment[1000];
+            uint16_t j = 0;
+
+            for(int i = 0; i < strlen(message); i++){
+                fragment[j] = message[i];
+                
+                
+                if(j == 999){
+                    uint16_t fragLength = htons(j+1);
+                    send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
+                    send(sd, fragment, strlen(message), MSG_NOSIGNAL);
+                    j = 0;
+                }else{
+                    j++;
+                }
+            }
+
+            if(j != 0){
+                uint16_t fragLength = htons(j+1);
+                send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
+                send(sd, fragment, strlen(message), MSG_NOSIGNAL);
+            }
+
+        }else{
+            uint16_t messageLength = htons(strlen(message));
+            send(sd, &messageLength, sizeof(uint16_t), MSG_NOSIGNAL);
+            send(sd, message, strlen(message), MSG_NOSIGNAL);
+        }
     }
 }
 
