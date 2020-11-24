@@ -94,6 +94,10 @@ void participant(int sd){
 
         printf("Enter message: ");
         scanf("%s", message);
+  
+        uint16_t messageLength = htons(strlen(message));
+        send(sd, &messageLength, sizeof(uint16_t), 0);
+        send(sd, message, strlen(message), 0);
     }
 }
 
