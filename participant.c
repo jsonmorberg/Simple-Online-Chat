@@ -21,7 +21,9 @@ void participant(int sd){
     int timeout = 60 * 1000;
 
     char response;
-    recv(sd, &response, sizeof(char), 0);
+    if(recv(sd, &response, sizeof(char), 0) == 0){
+        return;
+    }
 
     if(response == 'N'){
         printf("Server is full");
@@ -37,11 +39,16 @@ void participant(int sd){
 
             scanf("%s", buf);
             if(checkWord(buf)){
+                
                 uint8_t wordLength = strlen(buf);
+                buf[wordLength] = ' ';
                 send(sd, &wordLength, sizeof(uint8_t), 0);
                 send(sd, buf, wordLength, 0);
 
-                recv(sd, &response, sizeof(char), 0);
+                if(recv(sd, &response, sizeof(char), 0) == 0){
+                    return;
+                }
+
                 if(response == 'Y'){
                     flag = 1;
                 }else if(response == 'T'){
