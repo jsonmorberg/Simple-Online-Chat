@@ -44,6 +44,7 @@ void observer(int sd){
             scanf("%s", buf);
             if(checkWord(buf)){
                 uint8_t wordLength = strlen(buf);
+                buf[wordLength] = ' ';
                 send(sd, &wordLength, sizeof(uint8_t), 0);
                 send(sd, buf, wordLength, 0);
 
