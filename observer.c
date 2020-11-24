@@ -17,7 +17,6 @@ int checkWord(char* word){
     if(length == 0 || length > 10){
         return 0;
     }
-
     return 1;
 }
 
@@ -43,8 +42,8 @@ void observer(int sd){
 
             scanf("%s", buf);
             if(checkWord(buf)){
+
                 uint8_t wordLength = strlen(buf);
-                printf("%s", buf);
                 buf[wordLength] = ' ';
                 send(sd, &wordLength, sizeof(uint8_t), 0);
                 send(sd, buf, wordLength, 0);
@@ -72,13 +71,19 @@ void observer(int sd){
     for(;;){
 
         uint16_t messageLength;
-        recv(sd, &messageLength, sizeof(uint16_t), 0);
+        if(recv(sd, &messageLength, sizeof(uint16_t), 0) == 0){
+            return;
+        }
 
 
         messageLength = ntohl(messageLength);
         char message[messageLength + 1];
         message[messageLength] = '\0';
-        recv(sd, message, messageLength, 0);
+
+        if(recv(sd, message, messageLength, 0) == 0){
+            return;
+        }
+        
         printf("%s\n", message);
     }
 }
