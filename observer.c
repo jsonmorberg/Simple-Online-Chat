@@ -54,10 +54,13 @@ void observer(int sd){
             if(checkWord(buf)){
                 uint8_t wordLength = strlen(buf);
                 buf[wordLength] = ' ';
-                send(sd, &wordLength, sizeof(uint8_t), 0);
-                send(sd, buf, wordLength, 0);
+                send(sd, &wordLength, sizeof(uint8_t), MSG_NOSIGNAL);
+                send(sd, buf, wordLength, MSG_NOSIGNAL);
 
-                recv(sd, &response, sizeof(char), 0);
+                if(recv(sd, &response, sizeof(char), 0) == 0){
+                    return;
+                }
+
                 if(response == 'Y'){
                     break;
                 }else if(response == 'T'){
@@ -65,7 +68,7 @@ void observer(int sd){
                     fflush(stdout);
                 }else if(response == 'N'){
                     printf("There is no active participant with that username.\n");
-                    exit(EXIT_SUCCESS);
+                    return;
                 }
 
             }else{
@@ -78,22 +81,20 @@ void observer(int sd){
             return;
         }
     }
-    
+
     for(;;){
-
-        uint16_t messageLength;
-        if(recv(sd, &messageLength, sizeof(uint16_t), 0) == 0){
+        
+        uint16_t messageLength = 0;
+        if(recv(sd, &messageLength, sizeof(uint16_t), MSG_WAITALL) == 0){
             return;
         }
+        messageLength = ntohs(messageLength);
 
-
-        messageLength = ntohl(messageLength);
         char message[messageLength + 1];
-        message[messageLength] = '\0';
-
-        if(recv(sd, message, messageLength, 0) == 0){
+        if(recv(sd, message, messageLength, MSG_WAITALL) == 0){
             return;
         }
+        message[messageLength] = '\0';
 
         printf("%s\n", message);
     }
