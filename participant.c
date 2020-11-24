@@ -85,7 +85,7 @@ void participant(int sd){
         }
     }
 
-    printf("Username accepted.");
+    printf("Username accepted.\n");
 
     char message[10000];
     for(;;){
@@ -94,48 +94,6 @@ void participant(int sd){
 
         printf("Enter message: ");
         scanf("%s", message);
-
-        if(strlen(message) > 0){
-            if(message[0] == '@'){
-                privateFlag = 1;
-            }
-
-            if(strlen(message) > 1000){
-                char fragment[1000];
-
-                int index = 0;
-                for(int i = 0; i < strlen(message); i++){
-
-                    if(index == 0 && privateFlag == 1){
-                        if(message[0] != '@'){
-                            fragment[0] = '@';
-                            index++; 
-                        }
-
-                    }else{
-                        if(index != 1000){
-                            fragment[index] = message[i];
-                            index++;
-
-                        }else if(i = strlen(message)){
-                            uint16_t messageLength = htonl(strlen(fragment));
-                            send(sd, &messageLength, sizeof(uint16_t), 0);
-                            send(sd, fragment, strlen(fragment), 0);
-                        }else{
-                            index = 0;
-                            i--;
-                            uint16_t messageLength = htonl(strlen(fragment));
-                            send(sd, &messageLength, sizeof(uint16_t), 0);
-                            send(sd, fragment, strlen(fragment), 0);
-                        }
-                    }
-                }
-            }else{
-                uint16_t messageLength = htonl(strlen(message));
-                send(sd, &messageLength, sizeof(uint16_t), 0);
-                send(sd, message, strlen(message), 0);
-            }
-        }
     }
 }
 
