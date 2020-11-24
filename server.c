@@ -34,6 +34,79 @@ typedef struct client{
 client participants[255];
 client observers[255];
 
+void participant_username(int index){
+    uint8_t len;
+    char username[255];
+    recv(participants[index].sd, &len, sizeof(uint8_t), MSG_WAITALL);
+    recv(participants[index].sd, username, len, MSG_WAITALL);
+    username[len] = '\0';
+
+    //VALIDATE NAME
+    char validation = 'Y';//PUT STATUS HERE
+
+    if(validation == 'Y'){
+        send(participants[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
+        participants[index].username = username;
+        participants[index].hasUsername = 1;
+        participants[index].time = 0;
+    }else if(validation == 'T'){
+        send(participants[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
+        participants[index].time = time(NULL);
+    }else if(validation == 'I'){
+        send(participants[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
+    }
+
+    char connect_message[27];
+    snprintf(connect_message, 26, "User %s has joined", username);
+    connect_message[strlen(connect_message)] = '\0';
+    //SEND TO ALL
+}
+
+void observer_username(int index){
+    uint8_t len;
+    char username[255];
+    recv(observers[index].sd, &len, sizeof(uint8_t), MSG_WAITALL);
+    recv(observers[index].sd, username, len, MSG_WAITALL);
+    username[len] = '\0';
+    
+    char validation = 'Y';
+    //CHECK FOR INVALID RESPONSE
+
+    for(int i = 0; i < 255; i++){
+        if(strncmp(participants[i].username, username, 10)){
+            if(participants[i].connectedObserver){
+                validation = 'T';
+                break;
+            }else{
+                participants[i].observerIndex = index;
+                validation = 'Y';
+                break;
+            }
+        }
+    }
+
+    if(validation == 'Y'){
+        send(observers[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
+        observers[index].username = username;
+        observers[index].hasUsername = 1;
+        observers[index].time = 0;
+    }else if(validation == 'T'){
+        send(observers[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
+        observers[index].time = time(NULL);
+    }else if(validation == 'I'){
+        send(observers[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
+        close(observers[index].sd);
+        observers[index].time = 0;
+        observers[index].active = 0;
+        return;
+    }
+
+    char connect_message[25];
+    snprintf(connect_message, 25, "A new observer has joined");
+    connect_message[25] = '\0';
+    //SEND TO ALL
+}
+
 int participant_connect(int participant_sd){
     char response = 'Y';
 
