@@ -14,7 +14,7 @@
 int checkWord(char* word){
     int length = strlen(word);
 
-    if(length == 0 || length > 10){
+    if(){
         return 0;
     }
     return 1;
@@ -33,17 +33,19 @@ void observer(int sd){
         return;
     }
 
-    int flag = 0;
+    
     char buf[100];
     printf("Enter a participant's username: ");
 
+    int flag = 0;
     while(flag){
+        
         if(poll(&mypoll, 1, timeout)){
-
             scanf("%s", buf);
-            if(checkWord(buf)){
+            uint8_t wordLength = strlen(buf);
 
-                uint8_t wordLength = strlen(buf);
+            if(wordLength < 1 || wordLength > 10){
+
                 buf[wordLength] = ' ';
                 send(sd, &wordLength, sizeof(uint8_t), 0);
                 send(sd, buf, wordLength, 0);
@@ -83,7 +85,7 @@ void observer(int sd){
         if(recv(sd, message, messageLength, 0) == 0){
             return;
         }
-        
+
         printf("%s\n", message);
     }
 }
