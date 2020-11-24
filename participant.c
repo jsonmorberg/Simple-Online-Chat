@@ -93,11 +93,12 @@ void participant(int sd){
         int privateFlag = 0;
 
         printf("Enter message: ");
+        fflush(stdout);
         scanf("%s", message);
 
         if(strlen(message) > 1000){
             //fragment message into sizes of 1000 MAX
-            
+
             char fragment[1000];
             uint16_t j = 0;
 
