@@ -36,11 +36,10 @@ void participant(int sd){
         return;
     }
 
-    int flag = 0;
     char buf[100];
     printf("Choose a username: ");
 
-    while(flag){
+    while(1{
         if(poll(&mypoll, 1, timeout)){
 
             scanf("%s", buf);
@@ -57,7 +56,7 @@ void participant(int sd){
                 }
 
                 if(response == 'Y'){
-                    flag = 1;
+                    break;
                 }else if(response == 'T'){
                     printf("Username is already taken. Choose a different username: ");
                 }else if(response == 'I'){
@@ -65,7 +64,7 @@ void participant(int sd){
                 }
 
             }else{
-                printf("1Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores): ");
+                printf("Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores);");
             }
 
         }else{
