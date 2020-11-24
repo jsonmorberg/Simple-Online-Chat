@@ -11,13 +11,20 @@
 #include <netdb.h>
 #include <poll.h>
 
-int checkWord(char* word){
-    int length = strlen(word);
-
-    if(length == 0 || length > 10){
+int checkWord(char *word){
+    int len = strlen(word);
+    
+    if(len < 1 || len > 10){
         return 0;
-    }
+    } 
 
+    for(int i = 0; i < len; i++){
+        char letter = word[i];
+        if(!isalpha(letter) && letter != '_' && !isdigit(letter)){
+            return 0;
+        }
+    }    
+    
     return 1;
 }
 
