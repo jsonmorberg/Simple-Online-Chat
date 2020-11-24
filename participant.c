@@ -109,7 +109,7 @@ void participant(int sd){
                 if(j == 999){
                     uint16_t fragLength = htons(j+1);
                     send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
-                    send(sd, fragment, strlen(message), MSG_NOSIGNAL);
+                    send(sd, fragment, j+1, MSG_NOSIGNAL);
                     j = 0;
                 }else{
                     j++;
@@ -117,9 +117,9 @@ void participant(int sd){
             }
 
             if(j != 0){
-                uint16_t fragLength = htons(j+1);
+                uint16_t fragLength = htons(j);
                 send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
-                send(sd, fragment, strlen(message), MSG_NOSIGNAL);
+                send(sd, fragment, j, MSG_NOSIGNAL);
             }
 
         }else{
