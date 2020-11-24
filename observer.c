@@ -30,7 +30,7 @@ int checkWord(char *word){
 
 void observer(int sd){
 
-    struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
+    struct pollfd mypoll = {STDIN_FILENO, POLLIN|POLLPRI }; 
     int timeout = 60 * 1000;
 
     char response;
@@ -47,7 +47,7 @@ void observer(int sd){
 
     while(1){
 
-        if(poll(&mypoll, 1, timeout)){
+        if(poll(&mypoll, 2, timeout)){
             scanf("%s", buf);
             
 
@@ -107,10 +107,6 @@ int main(int argc, char **argv) {
     int sd; /* socket descriptor */
     int port; /* protocol port number */
     char *host; /* pointer to host name */
-
-    
-
-
 
     memset((char *) &sad, 0, sizeof(sad)); /* clear sockaddr structure */
     sad.sin_family = AF_INET; /* set family to Internet */
