@@ -30,7 +30,7 @@ int checkWord(char *word){
 
 void observer(int sd){
 
-    struct pollfd mypoll = {STDIN_FILENO, POLLIN|POLLPRI }; 
+    struct pollfd mypoll = {STDIN_FILENO, POLLIN|POLLPRI}; 
     int timeout = 60 * 1000;
 
     char response;

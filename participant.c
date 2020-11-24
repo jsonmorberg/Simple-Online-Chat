@@ -96,8 +96,8 @@ void participant(int sd){
         scanf("%s", message);
   
         uint16_t messageLength = htons(strlen(message));
-        send(sd, &messageLength, sizeof(uint16_t), 0);
-        send(sd, message, strlen(message), 0);
+        send(sd, &messageLength, sizeof(uint16_t), MSG_NOSIGNAL);
+        send(sd, message, strlen(message), MSG_NOSIGNAL);
     }
 }
 

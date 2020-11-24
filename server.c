@@ -34,7 +34,10 @@ typedef struct client{
 client participants[255];
 client observers[255];
 
+
+
 void participant_username(int index){
+
     uint8_t len;
     char username[255];
     recv(participants[index].sd, &len, sizeof(uint8_t), MSG_WAITALL);
@@ -49,9 +52,11 @@ void participant_username(int index){
         participants[index].username = username;
         participants[index].hasUsername = 1;
         participants[index].time = 0;
+
     }else if(validation == 'T'){
         send(participants[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
         participants[index].time = time(NULL);
+
     }else if(validation == 'I'){
         send(participants[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
     }
@@ -90,9 +95,11 @@ void observer_username(int index){
         observers[index].username = username;
         observers[index].hasUsername = 1;
         observers[index].time = 0;
+        
     }else if(validation == 'T'){
         send(observers[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
         observers[index].time = time(NULL);
+
     }else if(validation == 'I'){
         send(observers[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
         close(observers[index].sd);
@@ -188,7 +195,6 @@ int observer_connect(int observer_sd){
     return sd;
 }
 
-//Checks to see if the given character is in the mystery word
 int main(int argc, char* argv[]){
 
     //variables to store network info
@@ -390,12 +396,14 @@ int main(int argc, char* argv[]){
                     //RECIEVE MESSAGE
                 }else{
                     //GET USERNAME
+                    participant_connect(index);
                 }
             }else{
                 if(observers[index].hasUsername){
                     //ERROR, SHOULDN'T BE HERE
                 }else{
                     //GET USERNAME
+                    observer_connect(index);
                 }
             }
         }
