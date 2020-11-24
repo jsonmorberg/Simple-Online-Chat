@@ -12,7 +12,13 @@
 #include <poll.h>
 
 int checkWord(char* word){
+    int length = strlen(word);
 
+    if(length == 0 || length > 10){
+        return 0;
+    }
+
+    return 1;
 }
 
 void participant(int sd){
@@ -38,8 +44,9 @@ void participant(int sd){
         if(poll(&mypoll, 1, timeout)){
 
             scanf("%s", buf);
+            
             if(checkWord(buf)){
-                
+
                 uint8_t wordLength = strlen(buf);
                 buf[wordLength] = ' ';
                 send(sd, &wordLength, sizeof(uint8_t), 0);
@@ -58,7 +65,7 @@ void participant(int sd){
                 }
 
             }else{
-                printf("Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores): ");
+                printf("1Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores): ");
             }
 
         }else{
