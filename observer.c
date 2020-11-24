@@ -44,6 +44,7 @@ void observer(int sd){
             scanf("%s", buf);
             if(checkWord(buf)){
                 uint8_t wordLength = strlen(buf);
+                printf("%s", buf);
                 buf[wordLength] = ' ';
                 send(sd, &wordLength, sizeof(uint8_t), 0);
                 send(sd, buf, wordLength, 0);
@@ -64,7 +65,7 @@ void observer(int sd){
 
         }else{
             printf("Time to enter a username has expired.\n");
-            exit(EXIT_SUCCESS);
+            return;
         }
     }
 
