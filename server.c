@@ -34,8 +34,6 @@ typedef struct client{
 client participants[255];
 client observers[255];
 
-
-
 void participant_username(int index){
 
     uint8_t len;
