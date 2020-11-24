@@ -11,15 +11,6 @@
 #include <netdb.h>
 #include <poll.h>
 
-int checkWord(char* word){
-    int length = strlen(word);
-
-    if(){
-        return 0;
-    }
-    return 1;
-}
-
 void observer(int sd){
 
     struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
