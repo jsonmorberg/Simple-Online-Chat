@@ -46,7 +46,7 @@ void participant(int sd){
     char buf[100];
     printf("Choose a username: ");
 
-    while(1{
+    while(1){
         if(poll(&mypoll, 1, timeout)){
 
             scanf("%s", buf);
