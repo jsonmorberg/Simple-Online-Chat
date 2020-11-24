@@ -93,8 +93,9 @@ void participant(int sd){
         int privateFlag = 0;
 
         printf("Enter message: ");
-        fflush(stdout);
-        scanf("%s", message);
+        char *message = NULL;
+        size_t length = 0;
+        getline(&message, &length, stdin);
 
         if(strlen(message) > 1000){
             //fragment message into sizes of 1000 MAX
