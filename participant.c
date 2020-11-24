@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
+#include <ctype.h>
 
 int checkWord(char *word){
     int len = strlen(word);
@@ -45,6 +46,7 @@ void participant(int sd){
 
     char buf[100];
     printf("Choose a username: ");
+    fflush(stdout);
 
     while(1){
         if(poll(&mypoll, 1, timeout)){
@@ -66,12 +68,15 @@ void participant(int sd){
                     break;
                 }else if(response == 'T'){
                     printf("Username is already taken. Choose a different username: ");
+                    fflush(stdout);
                 }else if(response == 'I'){
                     printf("Username is invalid. Choose a valid username: ");
+                    fflush(stdout);
                 }
 
             }else{
-                printf("Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores);");
+                printf("Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores); ");
+                fflush(stdout);
             }
 
         }else{
