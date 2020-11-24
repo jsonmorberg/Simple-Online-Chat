@@ -3,13 +3,30 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <ctype.h>
 #include <poll.h>
+
+int checkWord(char *word){
+    int len = strlen(word);
+    
+    if(len < 1 || len > 10){
+        return 0;
+    } 
+
+    for(int i = 0; i < len; i++){
+        char letter = word[i];
+        if(!isalpha(letter) && letter != '_' && !isdigit(letter)){
+            return 0;
+        }
+    }    
+    
+    return 1;
+}
 
 void observer(int sd){
 
@@ -20,32 +37,32 @@ void observer(int sd){
     recv(sd, &response, sizeof(char), 0);
 
     if(response == 'N'){
-        printf("Server is full");
+        printf("Server is full\n");
         return;
     }
 
-    
     char buf[100];
     printf("Enter a participant's username: ");
+    fflush(stdout);
 
-    int flag = 0;
-    while(flag){
-        
+    while(1){
+
         if(poll(&mypoll, 1, timeout)){
             scanf("%s", buf);
-            uint8_t wordLength = strlen(buf);
+            
 
-            if(wordLength < 1 || wordLength > 10){
-
+            if(checkWord(buf)){
+                uint8_t wordLength = strlen(buf);
                 buf[wordLength] = ' ';
                 send(sd, &wordLength, sizeof(uint8_t), 0);
                 send(sd, buf, wordLength, 0);
 
                 recv(sd, &response, sizeof(char), 0);
                 if(response == 'Y'){
-                    flag = 1;
+                    break;
                 }else if(response == 'T'){
                     printf("That participant already has an observer. Enter a different participant's username: ");
+                    fflush(stdout);
                 }else if(response == 'N'){
                     printf("There is no active participant with that username.\n");
                     exit(EXIT_SUCCESS);
@@ -53,6 +70,7 @@ void observer(int sd){
 
             }else{
                printf("Enter a participant's username: ");
+               fflush(stdout);
             }
 
         }else{
@@ -60,7 +78,7 @@ void observer(int sd){
             return;
         }
     }
-
+    
     for(;;){
 
         uint16_t messageLength;
