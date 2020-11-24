@@ -12,7 +12,13 @@
 #include <poll.h>
 
 int checkWord(char* word){
+    int length = strlen(word);
 
+    if(length == 0 || length > 10){
+        return 0;
+    }
+
+    return 1;
 }
 
 void observer(int sd){
