@@ -28,8 +28,10 @@ int checkWord(char *word){
 	return 1;
 }
 
+//prompt user for username that is connected to participant & prints chat room
 void observer(int sd){
 
+	//select values
 	fd_set readfds;
 	fd_set wrk_readfds;
 	struct timeval tv;
@@ -40,16 +42,18 @@ void observer(int sd){
     FD_SET(sd, &readfds);
     max_fd = sd;
 
-	int timeout = 60 * 1000;
-
+	//Check if server is full
 	char response;
-	recv(sd, &response, sizeof(char), 0);
+	if (recv(sd, &response, sizeof(char), 0) == 0){
+		return;
+	}
 
 	if (response == 'N'){
 		printf("Server is full\n");
 		return;
 	}
 
+	//Prompt for username w/ error checking
 	printf("Enter a participant's username: ");
 	fflush(stdout);
 
@@ -79,6 +83,8 @@ void observer(int sd){
 			}
 
 			if (checkWord(buf)){
+
+				//send word to server and get response
 				uint8_t wordLength = strlen(buf);
 				buf[wordLength] = ' ';
 				send(sd, &wordLength, sizeof(uint8_t), MSG_NOSIGNAL);
@@ -107,6 +113,7 @@ void observer(int sd){
 		}
 	}
 
+	//receive mode
 	for (;;){
 		uint16_t messageLength = 0;
 		if (recv(sd, &messageLength, sizeof(uint16_t), MSG_WAITALL) == 0){
