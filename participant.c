@@ -123,15 +123,13 @@ void participant(int sd){
 		int validMessage = 1;
 
 		printf("Enter message: ");
+		fflush(stdout);
 
 		//select will monitor for server disconnection
 		FD_ZERO(&wrk_readfds);
         memcpy(&wrk_readfds, &readfds, sizeof(fd_set));
 
-		tv.tv_sec = 60;
-        tv.tv_usec = 0;
-
-		select(max_fd + 1, &wrk_readfds, NULL, NULL, &tv);
+		select(max_fd + 1, &wrk_readfds, NULL, NULL, NULL);
 
 		if(FD_ISSET(sd, &wrk_readfds)){
 			printf("Time to enter a username has expired.\n");
