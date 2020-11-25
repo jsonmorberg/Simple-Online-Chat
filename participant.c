@@ -124,6 +124,7 @@ void participant(int sd){
 
 		printf("Enter message: ");
 
+		//select will monitor for server disconnection
 		FD_ZERO(&wrk_readfds);
         memcpy(&wrk_readfds, &readfds, sizeof(fd_set));
 
@@ -253,11 +254,6 @@ int main(int argc, char **argv){
 	int sd; /*socket descriptor */
 	int port; /*protocol port number */
 	char *host; /*pointer to host name */
-
-	struct pollfd mypoll = { STDIN_FILENO,
-		POLLIN | POLLPRI
-	};
-	int timeout = 60 * 1000;
 
 	memset((char*) &sad, 0, sizeof(sad)); /*clear sockaddr structure */
 	sad.sin_family = AF_INET; /*set family to Internet */
