@@ -11,6 +11,7 @@
 #include <netdb.h>
 #include <poll.h>
 #include <ctype.h>
+#include <time.h>
 
 int checkWord(char *word){
 	int len = strlen(word);
@@ -57,14 +58,18 @@ void participant(int sd){
     //Prompt for username w/ error checking
 	printf("Choose a username: ");
 	fflush(stdout);
+	int timer = 60;
+	time_t start;
+	time_t end;
 
 	int retval;
 	while (1){
 
+		time(&start);
         FD_ZERO(&wrk_readfds);
         memcpy(&wrk_readfds, &readfds, sizeof(fd_set));
 
-		tv.tv_sec = 60;
+		tv.tv_sec = timer;
         tv.tv_usec = 0;
 		retval = select(max_fd + 1, &wrk_readfds, NULL, NULL, &tv);
 
@@ -99,10 +104,13 @@ void participant(int sd){
 					break;
 				}
 				else if (response == 'T'){
+					timer = 60;
 					printf("Username is already taken. Choose a different username: ");
 					fflush(stdout);
 				}
 				else if (response == 'I'){
+					time(&end);
+					timer =- (int)difftime(end, start);
 					printf("Username is invalid. Choose a valid username: ");
 					fflush(stdout);
 				}
