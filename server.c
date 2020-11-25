@@ -16,11 +16,13 @@
 #include "trie.c"
 #include <errno.h>
 
-extern int errno ;
+//error variable
+extern int errno;
 
 //Constant for length and global word
 #define QLEN 6
 
+//struct for participant
 typedef struct participant_client{
     char username[11];
     int sd;
@@ -31,6 +33,7 @@ typedef struct participant_client{
     time_t time;
 } participant_client;
 
+//struct for observer
 typedef struct observer_client{
     char username[11];
     int sd;
@@ -41,16 +44,20 @@ typedef struct observer_client{
     time_t time;
 } observer_client;
 
+//main arrays that will keep the clients
 participant_client participants[255];
 observer_client observers[255];
 
+//check if the username is valid and return the proper char
 char validateWord(char *word){
 	int len = strlen(word);
 
+    //word between 1 and 10
 	if (len < 1 || len > 10){
 		return 'I';
 	}
 
+    //alphanumeric
 	for (int i = 0; i < len; i++){
 		char letter = word[i];
 		if (!isalpha(letter) && letter != '_' && !isdigit(letter)){
@@ -58,6 +65,7 @@ char validateWord(char *word){
 		}
 	}
 
+    //not used by other participants 
     for(int i = 0; i < 255; i++){
         if(participants[i].active){
             if(strcmp(word, participants[i].username) == 0){
@@ -69,6 +77,7 @@ char validateWord(char *word){
 	return 'Y';
 }
 
+//send to each observer 
 void sendAll(char * message, int length){
     uint16_t nlength = htons(length);
     for(int i = 0; i < 255; i++){
@@ -79,6 +88,7 @@ void sendAll(char * message, int length){
     }
 }
 
+//reset an observer struct
 void resetObserver(int i){
     close(observers[i].sd);
     observers[i].active = 0;
@@ -100,6 +110,7 @@ void resetObserver(int i){
     }
 }
 
+//reset a participant struct
 void resetParticipant(int i){
     close(participants[i].sd);
     participants[i].active = 0;
@@ -107,10 +118,11 @@ void resetParticipant(int i){
     participants[i].sd = 0;
 
     if(participants[i].hasUsername){
+
+        //alert observers that a participant left
         char message[25];
         snprintf(message, 24, "User %s has left", participants[i].username);
         message[25] = '\0';
-
         sendAll(message, strlen(message));
         
         memset(participants[i].username, '\0', 11);
@@ -124,6 +136,7 @@ void resetParticipant(int i){
     }
 }
 
+//process an incoming message
 int receiveMessage(int index){
     uint16_t length;
     int retval = recv(participants[index].sd, &length, sizeof(uint16_t), MSG_WAITALL);
@@ -135,6 +148,7 @@ int receiveMessage(int index){
 
     char message[length+14];
 
+    //pad zeros & append username
     int zeros = 11 - strlen(participants[index].username);
     int i = 0;
     for(; i <= zeros; i++){
@@ -160,11 +174,11 @@ int receiveMessage(int index){
         return 0;
     }
 
-
     if(message[14] == '@'){
+        //private message
         message[0] = '%';
-        printf("%s\n", message);
         
+        //get the destinaton username
         char username[11];
         char* ptr = &message[15];
 
@@ -174,9 +188,9 @@ int receiveMessage(int index){
             ptr++;
             i++;
         }
-        
         username[i] = '\0';
         
+        //find the observer tied to destination username
         int foundFlag = 0;
         for(i = 0; i < 255; i++){
             if(observers[i].active){
@@ -188,12 +202,14 @@ int receiveMessage(int index){
         }
 
         if(foundFlag){
-
+            
+            //send the private message to destination observer
             uint16_t responseLength = htons(strlen(message));
             int observersIndex = participants[index].observerIndex;
             send(observers[observersIndex].sd, &responseLength, sizeof(uint16_t), MSG_NOSIGNAL);
             send(observers[observersIndex].sd, message, strlen(message), MSG_NOSIGNAL);
 
+            //send the private message to current observer if attached
             if(participants[index].connectedToObserver){
                 send(participants[index].sd, &responseLength, sizeof(uint16_t), MSG_NOSIGNAL);
                 send(participants[index].sd, message, strlen(message), MSG_NOSIGNAL);
@@ -204,11 +220,13 @@ int receiveMessage(int index){
         }else{
 
             if(participants[index].connectedToObserver){
+
                 //between 31 and 41 length, +1 for \0
                 char response[42];
                 snprintf(response, 41, "Warning: user %s doesn't exist...", username);
                 response[42] = '\0';
-
+            
+                //send to current observer
                 uint16_t responseLength = htons(strlen(response));
                 int observersIndex = participants[index].observerIndex;
                 send(observers[observersIndex].sd, &responseLength, sizeof(uint16_t), MSG_NOSIGNAL);
@@ -218,14 +236,18 @@ int receiveMessage(int index){
         }
 
     }else{
+        //public message
+
         message[0] = '>';
         sendAll(message, strlen(message));
         return 1;
     }
 }
 
+//get the username for a participant
 int participant_username(int index){
 
+    //get username
     uint8_t len;
     char username[255];
     int retval = recv(participants[index].sd, &len, sizeof(uint8_t), MSG_WAITALL);
@@ -238,9 +260,8 @@ int participant_username(int index){
         return 0;
     }
     username[len] = '\0';
-
-    printf("Got Username: %s\n", username);
     
+    //run through a validator
     char validation = validateWord(username);
 
     if(validation == 'Y'){
@@ -267,6 +288,7 @@ int participant_username(int index){
     return 1;
 }
 
+//get username for an observer
 int observer_username(int index){
     uint8_t len;
     char username[255];
@@ -279,11 +301,11 @@ int observer_username(int index){
         return 0;
     }
     username[len] = '\0';
-
-    printf("Got Username: %s\n", username);
     
+    //default case
     char validation = 'N';
 
+    //search for participant w/ username
     for(int i = 0; i < 255; i++){
         if(strcmp(participants[i].username, username) == 0){
             if(participants[i].connectedToObserver){
@@ -300,6 +322,7 @@ int observer_username(int index){
         }
     }
 
+    //handle validation 
     if(validation == 'Y'){
         send(observers[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
         strncpy(observers[index].username, username, len+1);
@@ -326,6 +349,7 @@ int observer_username(int index){
     return 1;
 }
 
+//connect a participant
 int participant_connect(int participant_sd){
     char response = 'Y';
 
@@ -363,6 +387,7 @@ int participant_connect(int participant_sd){
     return sd;
 }
 
+//connect an observer
 int observer_connect(int observer_sd){
     char response = 'Y';
 
@@ -409,7 +434,6 @@ int main(int argc, char* argv[]){
     int observer_sd, participant_sd; 
     int alen; 
     int optval = 1;  
-    uint8_t guesses;
     struct timeval tv;
 
     int max_fd;
@@ -437,6 +461,7 @@ int main(int argc, char* argv[]){
     observer_cad.sin_family = AF_INET; 
     observer_cad.sin_addr.s_addr = INADDR_ANY;
 
+    //set ports and validate
     if(participant_port == observer_port){
         fprintf(stderr,"Error: Don't use the same port for both participant and observer\n"); 
         exit(EXIT_FAILURE);
@@ -511,12 +536,13 @@ int main(int argc, char* argv[]){
         exit(EXIT_FAILURE); 
     } 
 
-    
+    //set select fds    
     FD_ZERO(&readfds);
     FD_SET(participant_sd, &readfds);
     FD_SET(observer_sd, &readfds);
     max_fd = participant_sd > observer_sd ? participant_sd : observer_sd;
 
+    //initialize structs for clients
     for(int i = 0; i < 255; i++){
         participants[i].connectedToObserver = 0;
         participants[i].active = 0;
@@ -543,23 +569,22 @@ int main(int argc, char* argv[]){
             exit(EXIT_FAILURE);
 
         } else if (retval == 0){
-            printf("TIME CHECK\n");
             for(int i = 0; i < 255; i++){
 
                 time_t current;
                 time(&current);
                 
+                //participant timeout check
                 if((participants[i].active) && (participants[i].time > 0)){
                     if(difftime(current, participants[i].time) >= 60){
-                        printf("A participant timedout\n");
                         FD_CLR(participants[i].sd, &readfds);
                         resetParticipant(i);
                     }
                 }
 
+                //observer timeout check
                 if((observers[i].active) && (observers[i].time > 0)){
                     if(difftime(current, observers[i].time) >= 60){
-                        printf("An observer timedout\n");
                         FD_CLR(observers[i].sd, &readfds);
                         resetObserver(i);
                     }
@@ -567,15 +592,16 @@ int main(int argc, char* argv[]){
             }
         }
 
+        //participant connection
         if(FD_ISSET(participant_sd, &wrk_readfds)){
             int code = participant_connect(participant_sd);
             if(code != -1){
-                printf("Nice\n");
                 FD_SET(code, &readfds);
                 max_fd = code > max_fd ? code : max_fd;
             }
         }
 
+        //participant connection
         if(FD_ISSET(observer_sd, &wrk_readfds)){
             int code = observer_connect(observer_sd);
             if(code != -1){
@@ -586,22 +612,18 @@ int main(int argc, char* argv[]){
 
         //skip over the first 3 fds (stdin, stdout, stderr)
         for(int i = 8; i < max_fd + 1; i++){
-            printf("sd: %d\n", i);
 
             //find index of existing participants/observers
             if(FD_ISSET(i, &wrk_readfds)){
-                printf("A Socket is ready to be read-----------\n");
                 int index;
                 int participant_flag = 0;
                 for(int j = 0; j < 255; j++){
                     if(participants[j].sd == i){
-                        printf("Sd is a participant\n");
                         index = j;
                         participant_flag = 1;
                         break;
 
                     }else if(observers[j].sd == i){
-                        printf("Sd is an observer\n");
                         index = j;
                         break;
                     }
@@ -609,9 +631,9 @@ int main(int argc, char* argv[]){
 
                 if(participant_flag){
                     if(participants[index].hasUsername){
-                        printf("RECEIVING MESSAGE FROM PARTICIPANT\n");
+
+                        //incoming message
                         if(!receiveMessage(index)){
-                            printf("PARTICIPANT CLIENT DC'D\n");
                             if(participants[index].connectedToObserver){
                                 FD_CLR(observers[participants[index].observerIndex].sd, &readfds);
                             }
@@ -619,26 +641,24 @@ int main(int argc, char* argv[]){
                             resetParticipant(index); 
                         }
                     }else{
-                        //GET USERNAME
-                        printf("PARTICIPANT USERNAME\n");
+
+                        //participant needs a username
                         if(!participant_username(index)){
-                            printf("PARTICIPANT CLIENT TIMED OUT OR DC'D\n");
                             FD_CLR(participants[index].sd, &readfds);
                             resetParticipant(index);
                         }
                     }
                 }else{
-
+                    
+                    //observer has disconnected
                     if(observers[index].hasUsername){
-                        printf("OBSERVER DISCONNECTED\n");
                         FD_CLR(observers[index].sd, &readfds);
                         resetObserver(index);
 
                     }else{
-                        //GET USERNAME
-                        printf("OBSERVER USERNAME\n");
+                        
+                        //observer needs a username
                         if(!observer_username(index)){
-                            printf("OBSERVER CLIENT TIMED OUT\n");
                             FD_CLR(observers[index].sd, &readfds);
                             resetObserver(index);
                         }
