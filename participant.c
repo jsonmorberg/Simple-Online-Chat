@@ -123,8 +123,6 @@ void participant(int sd){
             }
             user[i] = '\0';
 
-            printf("Got user: %s\n", user);
-
             int hasSpace = 0;
             for(int j = 0; j < strlen(message); j++){
                 if(isspace(message[j])){
@@ -133,10 +131,20 @@ void participant(int sd){
             }
 
             if(!hasSpace){
-                printf("crap\n");
                 validMessage = 0;
             }
+        }else{
+            
+            int hasNonSpace = 0;
+            for(int i = 0; i < strlen(message); i++){
+                if(!isspace(message[i])){
+                    hasNonSpace = 1;
+                }
+            }
 
+            if(!hasNonSpace){
+                validMessage = 0;
+            }
         }
 
         if(validMessage){
@@ -184,8 +192,6 @@ void participant(int sd){
                 send(sd, message, strlen(message), MSG_NOSIGNAL);
             }
         }
-
-        
     }
 }
 
