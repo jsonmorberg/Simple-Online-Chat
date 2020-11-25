@@ -1,6 +1,7 @@
 /* participant.c - code for participant. Do not rename this file */
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -97,6 +98,7 @@ void participant(int sd){
     for(;;){
 
         int privateFlag = 0;
+        int validMessage = 1;
 
         printf("Enter message: ");
         char *message = NULL;
@@ -107,15 +109,58 @@ void participant(int sd){
             message[strlen (message) - 1] = '\0';
         }
 
-        if(strlen(message) > 1000){
+        char user[10];
+        if(message[0] == '@' && message[1] != ' '){
+            privateFlag = 1;
+            
+            int i = 0;
+            for(; i < 10; i++){
+                if(message[i] != ' ' && message[i] != '\0'){
+                    user[i] = message[i];
+                }else{
+                    break;
+                }
+            }
+            user[i] = '\0';
+
+            printf("Got user: %s\n", user);
+
+            int hasSpace = 0;
+            for(int j = 0; j < strlen(message); j++){
+                if(isspace(message[j])){
+                    hasSpace = 1;
+                }
+            }
+
+            if(!hasSpace){
+                printf("crap\n");
+                validMessage = 0;
+            }
+
+        }
+
+        if(validMessage){
+            if(strlen(message) > 1000){
             //fragment message into sizes of 1000 MAX
 
             char fragment[1000];
             uint16_t j = 0;
+            int i = 0;
+            if(privateFlag){
+                i = strlen(user) + 1;
+            }
 
-            for(int i = 0; i < strlen(message); i++){
+            for(; i < strlen(message); i++){
+
+                if(j == 0 && privateFlag == 1){
+                    for(int k = 0; k < strlen(user); k++){
+                        fragment[k] = user[k];
+                    }
+                    fragment[strlen(user)] = ' ';
+                    j = strlen(user) + 1;
+                }
+
                 fragment[j] = message[i];
-                
                 
                 if(j == 999){
                     uint16_t fragLength = htons(j+1);
@@ -133,11 +178,14 @@ void participant(int sd){
                 send(sd, fragment, j, MSG_NOSIGNAL);
             }
 
-        }else{
-            uint16_t messageLength = htons(strlen(message));
-            send(sd, &messageLength, sizeof(uint16_t), MSG_NOSIGNAL);
-            send(sd, message, strlen(message), MSG_NOSIGNAL);
+            }else{
+                uint16_t messageLength = htons(strlen(message));
+                send(sd, &messageLength, sizeof(uint16_t), MSG_NOSIGNAL);
+                send(sd, message, strlen(message), MSG_NOSIGNAL);
+            }
         }
+
+        
     }
 }
 
