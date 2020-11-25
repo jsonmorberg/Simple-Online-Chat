@@ -29,12 +29,16 @@ int checkWord(char *word){
 	return 1;
 }
 
+//Prompts user for a valid username and sends messages to the chatroom server
 void participant(int sd){
+
+    //timeout values
 	struct pollfd mypoll = { STDIN_FILENO,
 		POLLIN | POLLPRI
 	};
 	int timeout = 60 * 1000;
 
+    //Check if server is full
 	char response;
 	if (recv(sd, &response, sizeof(char), 0) == 0){
 		return;
@@ -45,10 +49,13 @@ void participant(int sd){
 		return;
 	}
 
+    //Prompt for username w/ error checking
 	printf("Choose a username: ");
 	fflush(stdout);
 
 	while (1){
+
+        //poll will block till user input or timeout
 		if (poll(&mypoll, 1, timeout)){
 			char *buf = NULL;
 			size_t length = 0;
@@ -59,6 +66,8 @@ void participant(int sd){
 			}
 
 			if (checkWord(buf)){
+
+                //send word to server and get response
 				uint8_t wordLength = strlen(buf);
 				buf[wordLength] = ' ';
 				send(sd, &wordLength, sizeof(uint8_t), 0);
@@ -89,9 +98,8 @@ void participant(int sd){
 		}
 	}
 
+    //sending mode
 	printf("Username accepted.\n");
-
-	char message[10000];
 	for (;;){
 		int privateFlag = 0;
 		int validMessage = 1;
@@ -101,14 +109,18 @@ void participant(int sd){
 		size_t length = 0;
 		getline(&message, &length, stdin);
 
+        //remove the appended newline character
 		if ((strlen(message) > 0) && (message[strlen(message) - 1] == '\n')){
 			message[strlen(message) - 1] = '\0';
 		}
 
 		char user[10];
 		if (message[0] == '@' && message[1] != ' '){
-			privateFlag = 1;
+            //private message
 
+            //set flag and extract username 
+            //incase of message fragmentation
+			privateFlag = 1;
 			int i = 0;
 			for (; i < 10; i++){
 				if (message[i] != ' ' && message[i] != '\0'){
@@ -117,9 +129,9 @@ void participant(int sd){
 					break;
 				}
 			}
-
 			user[i] = '\0';
 
+            //check for whitespace in message
 			int hasSpace = 0;
 			for (int j = 0; j < strlen(message); j++){
 				if (isspace(message[j])){
@@ -131,6 +143,9 @@ void participant(int sd){
 				validMessage = 0;
 			}
         }else{
+            //public message
+
+            //check for a non whitespace character
 			int hasNonSpace = 0;
 			for (int i = 0; i < strlen(message); i++){
 				if (!isspace(message[i])){
@@ -145,16 +160,21 @@ void participant(int sd){
 
 		if (validMessage){
 			if (strlen(message) > 1000){
-				//fragment message into sizes of 1000 MAX
+				//message needs to be fragmented
 
 				char fragment[1000];
 				uint16_t j = 0;
+
+                //if private message, start iterating past the username
 				int i = 0;
 				if (privateFlag){
 					i = strlen(user) + 1;
 				}
 
+                //iterate through the message
 				for (; i < strlen(message); i++){
+
+                    //beginning of a private fragment, add @username
 					if (j == 0 && privateFlag == 1){
 						for (int k = 0; k < strlen(user); k++){
 							fragment[k] = user[k];
@@ -164,6 +184,7 @@ void participant(int sd){
 						j = strlen(user) + 1;
 					}
 
+                    //copy over message to fragment
 					fragment[j] = message[i];
 
 					if (j == 999){
@@ -177,6 +198,7 @@ void participant(int sd){
 					}
 				}
 
+                //residue fragment sent
 				if (j != 0){
 					uint16_t fragLength = htons(j);
 					send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
@@ -192,8 +214,7 @@ void participant(int sd){
 	}
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv){
 	struct hostent * ptrh; /*pointer to a host table entry */
 	struct protoent * ptrp; /*pointer to a protocol table entry */
 	struct sockaddr_in sad; /*structure to hold an IP address */
