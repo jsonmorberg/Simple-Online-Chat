@@ -32,11 +32,16 @@ int checkWord(char *word){
 //Prompts user for a valid username and sends messages to the chatroom server
 void participant(int sd){
 
-    //timeout values
-	struct pollfd mypoll = { STDIN_FILENO,
-		POLLIN | POLLPRI
-	};
-	int timeout = 60 * 1000;
+    //select values
+	fd_set readfds;
+	fd_set wrk_readfds;
+	struct timeval tv;
+	int max_fd;
+
+	FD_ZERO(&readfds);
+    FD_SET(0, &readfds);
+    FD_SET(sd, &readfds);
+    max_fd = sd;
 
     //Check if server is full
 	char response;
@@ -53,10 +58,17 @@ void participant(int sd){
 	printf("Choose a username: ");
 	fflush(stdout);
 
+	int retval;
 	while (1){
 
-        //poll will block till user input or timeout
-		if (poll(&mypoll, 1, timeout)){
+        FD_ZERO(&wrk_readfds);
+        memcpy(&wrk_readfds, &readfds, sizeof(fd_set));
+
+		tv.tv_sec = 60;
+        tv.tv_usec = 0;
+		retval = select(max_fd + 1, &wrk_readfds, NULL, NULL, &tv);
+
+		if (retval != 0){
 			char *buf = NULL;
 			size_t length = 0;
 			getline(&buf, &length, stdin);
