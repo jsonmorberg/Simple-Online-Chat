@@ -13,11 +13,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <time.h>
-#include "trie.c"
 #include <errno.h>
-
-//error variable
-extern int errno;
 
 //Constant for length and global word
 #define QLEN 6
@@ -251,7 +247,6 @@ int participant_username(int index){
     uint8_t len;
     char username[255];
     int retval = recv(participants[index].sd, &len, sizeof(uint8_t), MSG_WAITALL);
-    printf("%d\n", retval);
     if(retval == 0){
         return 0;
     }
@@ -432,7 +427,6 @@ int main(int argc, char* argv[]){
     struct sockaddr_in observer_cad; 
     struct sockaddr_in participant_cad; 
     int observer_sd, participant_sd; 
-    int alen; 
     int optval = 1;  
     struct timeval tv;
 
