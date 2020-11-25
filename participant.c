@@ -74,7 +74,7 @@ void participant(int sd){
 				printf("Time to enter a username has expired.\n");
 				return;
 			}
-			
+
 			char *buf = NULL;
 			size_t length = 0;
 			getline(&buf, &length, stdin);
@@ -123,6 +123,20 @@ void participant(int sd){
 		int validMessage = 1;
 
 		printf("Enter message: ");
+
+		FD_ZERO(&wrk_readfds);
+        memcpy(&wrk_readfds, &readfds, sizeof(fd_set));
+
+		tv.tv_sec = 60;
+        tv.tv_usec = 0;
+
+		select(max_fd + 1, &wrk_readfds, NULL, NULL, &tv);
+
+		if(FD_ISSET(sd, &wrk_readfds)){
+			printf("Time to enter a username has expired.\n");
+			return;
+		}
+
 		char *message = NULL;
 		size_t length = 0;
 		getline(&message, &length, stdin);
