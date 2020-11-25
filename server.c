@@ -21,18 +21,28 @@ extern int errno ;
 //Constant for length and global word
 #define QLEN 6
 
-typedef struct client{
+typedef struct participant_client{
     char username[11];
     int sd;
-    int connectedObserver;
+    int connectedToObserver;
     int observerIndex;
     int active;
     int hasUsername;
     time_t time;
-} client;
+} participant_client;
 
-client participants[255];
-client observers[255];
+typedef struct observer_client{
+    char username[11];
+    int sd;
+    int connectedToParticipant;
+    int participantIndex;
+    int active;
+    int hasUsername;
+    time_t time;
+} observer_client;
+
+participant_client participants[255];
+observer_client observers[255];
 
 char validateWord(char *word){
 	int len = strlen(word);
@@ -59,36 +69,6 @@ char validateWord(char *word){
 	return 'Y';
 }
 
-void resetObserver(int i){
-    close(observers[i].sd);
-    observers[i].active = 0;
-    observers[i].time = 0;
-    observers[i].sd = 0;
-
-    if(observers[i].hasUsername){
-        observers[i].hasUsername = 0;
-        memset(observers[i].username, '\0', 11);
-    }
-}
-
-void resetParticipant(int i){
-    close(participants[i].sd);
-    participants[i].active = 0;
-    participants[i].time = 0;
-    participants[i].sd = 0;
-
-    if(participants[i].hasUsername){
-        participants[i].hasUsername = 0;
-        memset(participants[i].username, '\0', 11);
-    }
-
-    if(participants[i].connectedObserver){
-        resetObserver(participants[i].observerIndex);
-        participants[i].connectedObserver = 0;
-        participants[i].observerIndex = 0;
-    }
-}
-
 void sendAll(char * message, int length){
     uint16_t nlength = htons(length);
     for(int i = 0; i < 255; i++){
@@ -99,13 +79,57 @@ void sendAll(char * message, int length){
     }
 }
 
+void resetObserver(int i){
+    close(observers[i].sd);
+    observers[i].active = 0;
+    observers[i].time = 0;
+    observers[i].sd = 0;
+
+    if(observers[i].hasUsername){
+        memset(observers[i].username, '\0', 11);
+        observers[i].hasUsername = 0;
+    }
+
+    if(observers[i].connectedToParticipant){
+        int participantIndex = observers[i].participantIndex;
+        participants[participantIndex].connectedToObserver = 0;
+        participants[participantIndex].observerIndex = 0;
+
+        observers[i].connectedToParticipant = 0;
+        observers[i].participantIndex = 0;
+    }
+}
+
+void resetParticipant(int i){
+    close(participants[i].sd);
+    participants[i].active = 0;
+    participants[i].time = 0;
+    participants[i].sd = 0;
+
+    if(participants[i].hasUsername){
+        char message[25];
+        snprintf(message, 24, "User %s has left", participants[i].username);
+        message[25] = '\0';
+
+        sendAll(message, strlen(message));
+        
+        memset(participants[i].username, '\0', 11);
+        participants[i].hasUsername = 0;
+    }
+
+    if(participants[i].connectedToObserver){
+        resetObserver(participants[i].observerIndex);
+        participants[i].connectedToObserver = 0;
+        participants[i].observerIndex = 0;
+    }
+}
+
 int receiveMessage(int index){
     uint16_t length;
     int retval = recv(participants[index].sd, &length, sizeof(uint16_t), MSG_WAITALL);
     length = ntohs(length);
 
     if(retval <= 0 || length > 1000){
-        printf("Message was greater than 1000 or failed the length recv\n");
         return 0;
     }
 
@@ -120,7 +144,6 @@ int receiveMessage(int index){
     snprintf(message+i, strlen(participants[index].username) + 3, "%s: ", participants[index].username);
 
     if(recv(participants[index].sd, message+14, length, MSG_WAITALL) == 0){
-        printf("Second Recv failure\n");
         return 0;
     }
     message[length + 14] = '\0';
@@ -134,13 +157,11 @@ int receiveMessage(int index){
 	}
 
     if(!hasNonSpace){
-        printf("Message doesn't have a nonspace char\n");
         return 0;
     }
 
 
     if(message[14] == '@'){
-        //PRIVATE 
         message[0] = '%';
         printf("%s\n", message);
         
@@ -173,7 +194,7 @@ int receiveMessage(int index){
             send(observers[observersIndex].sd, &responseLength, sizeof(uint16_t), MSG_NOSIGNAL);
             send(observers[observersIndex].sd, message, strlen(message), MSG_NOSIGNAL);
 
-            if(participants[index].connectedObserver){
+            if(participants[index].connectedToObserver){
                 send(participants[index].sd, &responseLength, sizeof(uint16_t), MSG_NOSIGNAL);
                 send(participants[index].sd, message, strlen(message), MSG_NOSIGNAL);
             }
@@ -182,7 +203,7 @@ int receiveMessage(int index){
 
         }else{
 
-            if(participants[index].connectedObserver){
+            if(participants[index].connectedToObserver){
                 //between 31 and 41 length, +1 for \0
                 char response[42];
                 snprintf(response, 41, "Warning: user %s doesn't exist...", username);
@@ -265,12 +286,14 @@ int observer_username(int index){
 
     for(int i = 0; i < 255; i++){
         if(strcmp(participants[i].username, username) == 0){
-            if(participants[i].connectedObserver){
+            if(participants[i].connectedToObserver){
                 validation = 'T';
                 break;
             }else{
                 participants[i].observerIndex = index;
-                participants[i].connectedObserver = 1;
+                participants[i].connectedToObserver = 1;
+                observers[index].participantIndex = i;
+                observers[index].connectedToParticipant = 1;
                 validation = 'Y';
                 break;
             }
@@ -495,7 +518,7 @@ int main(int argc, char* argv[]){
     max_fd = participant_sd > observer_sd ? participant_sd : observer_sd;
 
     for(int i = 0; i < 255; i++){
-        participants[i].connectedObserver = 0;
+        participants[i].connectedToObserver = 0;
         participants[i].active = 0;
         participants[i].hasUsername = 0;
         memset(participants[i].username, '\0', 11);
@@ -589,7 +612,7 @@ int main(int argc, char* argv[]){
                         printf("RECEIVING MESSAGE FROM PARTICIPANT\n");
                         if(!receiveMessage(index)){
                             printf("PARTICIPANT CLIENT DC'D\n");
-                            if(participants[index].connectedObserver){
+                            if(participants[index].connectedToObserver){
                                 FD_CLR(observers[participants[index].observerIndex].sd, &readfds);
                             }
                             FD_CLR(participants[index].sd, &readfds);
@@ -607,7 +630,7 @@ int main(int argc, char* argv[]){
                 }else{
 
                     if(observers[index].hasUsername){
-                        printf("OBSERVER DISCONNECTED");
+                        printf("OBSERVER DISCONNECTED\n");
                         FD_CLR(observers[index].sd, &readfds);
                         resetObserver(index);
 
@@ -621,8 +644,7 @@ int main(int argc, char* argv[]){
                         }
                     }
                 }
-            }
-            
+            } 
         }
     }
 }
