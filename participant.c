@@ -30,11 +30,14 @@ int checkWord(char *word){
     return 1;
 }
 
+//Prompts user for a valid username and sends messages to the chatroom server
 void participant(int sd){
 
+    //timeout values
     struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
     int timeout = 60 * 1000;
 
+    //Check if server full
     char response;
     if(recv(sd, &response, sizeof(char), 0) == 0){
         return;
@@ -45,27 +48,29 @@ void participant(int sd){
         return;
     }
 
-    
+    //Prompt for username w/ error checking
     printf("Choose a username: ");
     fflush(stdout);
-
     while(1){
+        
+        //poll will block until user input or timeout
         if(poll(&mypoll, 1, timeout)){
             
-            char *buf = NULL;
+            char *usernameBuf = NULL;
             size_t length = 0;
-            getline(&buf, &length, stdin);
+            getline(&usernameBuf, &length, stdin);
 
-            if ((strlen(buf) > 0) && (buf[strlen (buf) - 1] == '\n')){
-                buf[strlen (buf) - 1] = '\0';
+            if ((strlen(usernameBuf) > 0) && (usernameBuf[strlen (usernameBuf) - 1] == '\n')){
+                usernameBuf[strlen (usernameBuf) - 1] = '\0';
             }
             
-            if(checkWord(buf)){
-
-                uint8_t wordLength = strlen(buf);
-                buf[wordLength] = ' ';
+            if(checkWord(usernameBuf)){
+                
+                //send word to server and receive response
+                uint8_t wordLength = strlen(usernameBuf);
+                usernameBuf[wordLength] = ' ';
                 send(sd, &wordLength, sizeof(uint8_t), 0);
-                send(sd, buf, wordLength, 0);
+                send(sd, usernameBuf, wordLength, 0);
 
                 if(recv(sd, &response, sizeof(char), 0) == 0){
                     return;
@@ -92,9 +97,8 @@ void participant(int sd){
         }
     }
 
+    //message sending mode
     printf("Username accepted.\n");
-
-    char message[10000];
     for(;;){
 
         int privateFlag = 0;
@@ -105,14 +109,18 @@ void participant(int sd){
         size_t length = 0;
         getline(&message, &length, stdin);
 
+        //remove the appended newline character
         if ((strlen(message) > 0) && (message[strlen (message) - 1] == '\n')){
             message[strlen (message) - 1] = '\0';
         }
 
+        
         char user[10];
         if(message[0] == '@' && message[1] != ' '){
-            privateFlag = 1;
+            //private message
             
+            //set flag and extract username incase of fragmented messages
+            privateFlag = 1;
             int i = 0;
             for(; i < 10; i++){
                 if(message[i] != ' ' && message[i] != '\0'){
@@ -123,6 +131,7 @@ void participant(int sd){
             }
             user[i] = '\0';
 
+            //check for whitespace in message
             int hasSpace = 0;
             for(int j = 0; j < strlen(message); j++){
                 if(isspace(message[j])){
@@ -133,8 +142,11 @@ void participant(int sd){
             if(!hasSpace){
                 validMessage = 0;
             }
+
         }else{
-            
+            //public message
+
+            //check for a non whitespace char
             int hasNonSpace = 0;
             for(int i = 0; i < strlen(message); i++){
                 if(!isspace(message[i])){
@@ -148,44 +160,54 @@ void participant(int sd){
         }
 
         if(validMessage){
+
             if(strlen(message) > 1000){
-            //fragment message into sizes of 1000 MAX
+                //message will need to be fragmented
+        
+                char fragment[1000];
+                uint16_t j = 0;
 
-            char fragment[1000];
-            uint16_t j = 0;
-            int i = 0;
-            if(privateFlag){
-                i = strlen(user) + 1;
-            }
+                //if private message, start iterating after username
+                int i = 0;
+                if(privateFlag){
+                    i = strlen(user) + 1;
+                }
 
-            for(; i < strlen(message); i++){
-
-                if(j == 0 && privateFlag == 1){
-                    for(int k = 0; k < strlen(user); k++){
-                        fragment[k] = user[k];
+                //iterate through inputted message
+                for(; i < strlen(message); i++){
+                    
+                    //beginning of a private fragment, add @username
+                    if(j == 0 && privateFlag == 1){
+                        for(int k = 0; k < strlen(user); k++){
+                            fragment[k] = user[k];
+                        }
+                        fragment[strlen(user)] = ' ';
+                        j = strlen(user) + 1;
                     }
-                    fragment[strlen(user)] = ' ';
-                    j = strlen(user) + 1;
+
+                    //copy over message to fragment
+                    fragment[j] = message[i];
+
+                    //end of a fragment reached
+                    //send it to the server and start over
+                    if(j == 999){
+                        uint16_t fragLength = htons(j+1);
+                        end(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
+                        send(sd, fragment, j+1, MSG_NOSIGNAL);
+                        j = 0;
+                    }else{
+                        j++;
+                    }
                 }
 
-                fragment[j] = message[i];
-                
-                if(j == 999){
-                    uint16_t fragLength = htons(j+1);
+                //residue fragment sent
+                if(j != 0){
+                    uint16_t fragLength = htons(j);
                     send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
-                    send(sd, fragment, j+1, MSG_NOSIGNAL);
-                    j = 0;
-                }else{
-                    j++;
+                    send(sd, fragment, j, MSG_NOSIGNAL);
                 }
-            }
 
-            if(j != 0){
-                uint16_t fragLength = htons(j);
-                send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
-                send(sd, fragment, j, MSG_NOSIGNAL);
-            }
-
+            //does not need to fragment
             }else{
                 uint16_t messageLength = htons(strlen(message));
                 send(sd, &messageLength, sizeof(uint16_t), MSG_NOSIGNAL);
