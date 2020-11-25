@@ -30,9 +30,16 @@ int checkWord(char *word){
 
 void observer(int sd){
 
-	struct pollfd mypoll = { 
-        STDIN_FILENO, POLLIN | POLLPRI
-	};
+	fd_set readfds;
+	fd_set wrk_readfds;
+	struct timeval tv;
+	int max_fd;
+
+	FD_ZERO(&readfds);
+    FD_SET(0, &readfds);
+    FD_SET(sd, &readfds);
+    max_fd = sd;
+
 	int timeout = 60 * 1000;
 
 	char response;
@@ -46,10 +53,23 @@ void observer(int sd){
 	printf("Enter a participant's username: ");
 	fflush(stdout);
 
+	int retval;
 	while (1){
-		//poll will block till user input or timeout
 
-		if (poll(&mypoll, 1, timeout)){
+		FD_ZERO(&wrk_readfds);
+        memcpy(&wrk_readfds, &readfds, sizeof(fd_set));
+
+		tv.tv_sec = 60;
+        tv.tv_usec = 0;
+		retval = select(max_fd + 1, &wrk_readfds, NULL, NULL, &tv);
+
+		if (retval != 0){
+
+			if(FD_ISSET(sd, &wrk_readfds)){
+				printf("Time to enter a username has expired.\n");
+				return;
+			}
+
 			char *buf = NULL;
 			size_t length = 0;
 			getline(&buf, &length, stdin);
@@ -95,7 +115,7 @@ void observer(int sd){
 
 		messageLength = ntohs(messageLength);
 
-		char message[messageLength + 1];
+		char message[messageLength];
 		if (recv(sd, message, messageLength, MSG_WAITALL) == 0){
 			return;
 		}
