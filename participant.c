@@ -69,6 +69,12 @@ void participant(int sd){
 		retval = select(max_fd + 1, &wrk_readfds, NULL, NULL, &tv);
 
 		if (retval != 0){
+
+			if(FD_ISSET(sd, &wrk_readfds)){
+				printf("Time to enter a username has expired.\n");
+				return;
+			}
+			
 			char *buf = NULL;
 			size_t length = 0;
 			getline(&buf, &length, stdin);
