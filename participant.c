@@ -1,10 +1,9 @@
-/* participant.c - code for participant. Do not rename this file */
+/*participant.c - code for participant. Do not rename this file */ 
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
 #include <unistd.h>
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -14,250 +13,248 @@
 #include <ctype.h>
 
 int checkWord(char *word){
-    int len = strlen(word);
-    
-    if(len < 1 || len > 10){
-        return 0;
-    } 
+	int len = strlen(word);
 
-    for(int i = 0; i < len; i++){
-        char letter = word[i];
-        if(!isalpha(letter) && letter != '_' && !isdigit(letter)){
-            return 0;
-        }
-    }    
-    
-    return 1;
+	if (len < 1 || len > 10){
+		return 0;
+	}
+
+	for (int i = 0; i < len; i++){
+		char letter = word[i];
+		if (!isalpha(letter) && letter != '_' && !isdigit(letter)){
+			return 0;
+		}
+	}
+
+	return 1;
 }
 
 void participant(int sd){
+	struct pollfd mypoll = { STDIN_FILENO,
+		POLLIN | POLLPRI
+	};
+	int timeout = 60 * 1000;
 
-    struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
-    int timeout = 60 * 1000;
+	char response;
+	if (recv(sd, &response, sizeof(char), 0) == 0){
+		return;
+	}
 
-    char response;
-    if(recv(sd, &response, sizeof(char), 0) == 0){
-        return;
-    }
+	if (response == 'N'){
+		printf("Server is full");
+		return;
+	}
 
-    if(response == 'N'){
-        printf("Server is full");
-        return;
-    }
+	printf("Choose a username: ");
+	fflush(stdout);
 
-    
-    printf("Choose a username: ");
-    fflush(stdout);
+	while (1){
+		if (poll(&mypoll, 1, timeout)){
+			char *buf = NULL;
+			size_t length = 0;
+			getline(&buf, &length, stdin);
 
-    while(1){
-        if(poll(&mypoll, 1, timeout)){
-            
-            char *buf = NULL;
-            size_t length = 0;
-            getline(&buf, &length, stdin);
+			if ((strlen(buf) > 0) && (buf[strlen(buf) - 1] == '\n')){
+				buf[strlen(buf) - 1] = '\0';
+			}
 
-            if ((strlen(buf) > 0) && (buf[strlen (buf) - 1] == '\n')){
-                buf[strlen (buf) - 1] = '\0';
-            }
-            
-            if(checkWord(buf)){
+			if (checkWord(buf)){
+				uint8_t wordLength = strlen(buf);
+				buf[wordLength] = ' ';
+				send(sd, &wordLength, sizeof(uint8_t), 0);
+				send(sd, buf, wordLength, 0);
 
-                uint8_t wordLength = strlen(buf);
-                buf[wordLength] = ' ';
-                send(sd, &wordLength, sizeof(uint8_t), 0);
-                send(sd, buf, wordLength, 0);
+				if (recv(sd, &response, sizeof(char), 0) == 0){
+					return;
+				}
 
-                if(recv(sd, &response, sizeof(char), 0) == 0){
-                    return;
-                }
+				if (response == 'Y'){
+					break;
+				}
+				else if (response == 'T'){
+					printf("Username is already taken. Choose a different username: ");
+					fflush(stdout);
+				}
+				else if (response == 'I'){
+					printf("Username is invalid. Choose a valid username: ");
+					fflush(stdout);
+				}
+			}else{
+				printf("Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores); ");
+				fflush(stdout);
+			}
+		}else{
+			printf("Time to choose a username has expired.\n");
+			exit(EXIT_SUCCESS);
+		}
+	}
 
-                if(response == 'Y'){
-                    break;
-                }else if(response == 'T'){
-                    printf("Username is already taken. Choose a different username: ");
-                    fflush(stdout);
-                }else if(response == 'I'){
-                    printf("Username is invalid. Choose a valid username: ");
-                    fflush(stdout);
-                }
+	printf("Username accepted.\n");
 
-            }else{
-                printf("Choose a username (upto 10 characters long; allowed characters are alphabets, digits, and underscores); ");
-                fflush(stdout);
-            }
+	char message[10000];
+	for (;;){
+		int privateFlag = 0;
+		int validMessage = 1;
 
+		printf("Enter message: ");
+		char *message = NULL;
+		size_t length = 0;
+		getline(&message, &length, stdin);
+
+		if ((strlen(message) > 0) && (message[strlen(message) - 1] == '\n')){
+			message[strlen(message) - 1] = '\0';
+		}
+
+		char user[10];
+		if (message[0] == '@' && message[1] != ' '){
+			privateFlag = 1;
+
+			int i = 0;
+			for (; i < 10; i++){
+				if (message[i] != ' ' && message[i] != '\0'){
+					user[i] = message[i];
+				}else{
+					break;
+				}
+			}
+
+			user[i] = '\0';
+
+			int hasSpace = 0;
+			for (int j = 0; j < strlen(message); j++){
+				if (isspace(message[j])){
+					hasSpace = 1;
+				}
+			}
+
+			if (!hasSpace){
+				validMessage = 0;
+			}
         }else{
-            printf("Time to choose a username has expired.\n");
-            exit(EXIT_SUCCESS);
-        }
-    }
+			int hasNonSpace = 0;
+			for (int i = 0; i < strlen(message); i++){
+				if (!isspace(message[i])){
+					hasNonSpace = 1;
+				}
+			}
 
-    printf("Username accepted.\n");
+			if (!hasNonSpace){
+				validMessage = 0;
+			}
+		}
 
-    char message[10000];
-    for(;;){
+		if (validMessage){
+			if (strlen(message) > 1000){
+				//fragment message into sizes of 1000 MAX
 
-        int privateFlag = 0;
-        int validMessage = 1;
+				char fragment[1000];
+				uint16_t j = 0;
+				int i = 0;
+				if (privateFlag){
+					i = strlen(user) + 1;
+				}
 
-        printf("Enter message: ");
-        char *message = NULL;
-        size_t length = 0;
-        getline(&message, &length, stdin);
+				for (; i < strlen(message); i++){
+					if (j == 0 && privateFlag == 1){
+						for (int k = 0; k < strlen(user); k++){
+							fragment[k] = user[k];
+						}
 
-        if ((strlen(message) > 0) && (message[strlen (message) - 1] == '\n')){
-            message[strlen (message) - 1] = '\0';
-        }
+						fragment[strlen(user)] = ' ';
+						j = strlen(user) + 1;
+					}
 
-        char user[10];
-        if(message[0] == '@' && message[1] != ' '){
-            privateFlag = 1;
-            
-            int i = 0;
-            for(; i < 10; i++){
-                if(message[i] != ' ' && message[i] != '\0'){
-                    user[i] = message[i];
-                }else{
-                    break;
-                }
-            }
-            user[i] = '\0';
+					fragment[j] = message[i];
 
-            int hasSpace = 0;
-            for(int j = 0; j < strlen(message); j++){
-                if(isspace(message[j])){
-                    hasSpace = 1;
-                }
-            }
+					if (j == 999){
+						uint16_t fragLength = htons(j + 1);
+						send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
+						send(sd, fragment, j + 1, MSG_NOSIGNAL);
+						j = 0;
 
-            if(!hasSpace){
-                validMessage = 0;
-            }
-        }else{
-            
-            int hasNonSpace = 0;
-            for(int i = 0; i < strlen(message); i++){
-                if(!isspace(message[i])){
-                    hasNonSpace = 1;
-                }
-            }
+					}else{
+						j++;
+					}
+				}
 
-            if(!hasNonSpace){
-                validMessage = 0;
-            }
-        }
+				if (j != 0){
+					uint16_t fragLength = htons(j);
+					send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
+					send(sd, fragment, j, MSG_NOSIGNAL);
+				}
 
-        if(validMessage){
-            if(strlen(message) > 1000){
-            //fragment message into sizes of 1000 MAX
-
-            char fragment[1000];
-            uint16_t j = 0;
-            int i = 0;
-            if(privateFlag){
-                i = strlen(user) + 1;
-            }
-
-            for(; i < strlen(message); i++){
-
-                if(j == 0 && privateFlag == 1){
-                    for(int k = 0; k < strlen(user); k++){
-                        fragment[k] = user[k];
-                    }
-                    fragment[strlen(user)] = ' ';
-                    j = strlen(user) + 1;
-                }
-
-                fragment[j] = message[i];
-                
-                if(j == 999){
-                    uint16_t fragLength = htons(j+1);
-                    send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
-                    send(sd, fragment, j+1, MSG_NOSIGNAL);
-                    j = 0;
-                }else{
-                    j++;
-                }
-            }
-
-            if(j != 0){
-                uint16_t fragLength = htons(j);
-                send(sd, &fragLength, sizeof(uint16_t), MSG_NOSIGNAL);
-                send(sd, fragment, j, MSG_NOSIGNAL);
-            }
-
-            }else{
-                uint16_t messageLength = htons(strlen(message));
-                send(sd, &messageLength, sizeof(uint16_t), MSG_NOSIGNAL);
-                send(sd, message, strlen(message), MSG_NOSIGNAL);
-            }
-        }
-    }
+			}else{
+				uint16_t messageLength = htons(strlen(message));
+				send(sd, &messageLength, sizeof(uint16_t), MSG_NOSIGNAL);
+				send(sd, message, strlen(message), MSG_NOSIGNAL);
+			}
+		}
+	}
 }
 
-int main(int argc, char **argv) {
-    struct hostent *ptrh; /* pointer to a host table entry */
-    struct protoent *ptrp; /* pointer to a protocol table entry */
-    struct sockaddr_in sad; /* structure to hold an IP address */
-    int sd; /* socket descriptor */
-    int port; /* protocol port number */
-    char *host; /* pointer to host name */
+int main(int argc, char **argv)
+{
+	struct hostent * ptrh; /*pointer to a host table entry */
+	struct protoent * ptrp; /*pointer to a protocol table entry */
+	struct sockaddr_in sad; /*structure to hold an IP address */
+	int sd; /*socket descriptor */
+	int port; /*protocol port number */
+	char *host; /*pointer to host name */
 
-    struct pollfd mypoll = { STDIN_FILENO, POLLIN|POLLPRI }; 
-    int timeout = 60 * 1000;
+	struct pollfd mypoll = { STDIN_FILENO,
+		POLLIN | POLLPRI
+	};
+	int timeout = 60 * 1000;
 
+	memset((char*) &sad, 0, sizeof(sad)); /*clear sockaddr structure */
+	sad.sin_family = AF_INET; /*set family to Internet */
 
+	if (argc != 3){
+		fprintf(stderr, "Error: Wrong number of arguments\n");
+		fprintf(stderr, "usage:\n");
+		fprintf(stderr, "./client server_address server_port\n");
+		exit(EXIT_FAILURE);
+	}
 
-    memset((char *) &sad, 0, sizeof(sad)); /* clear sockaddr structure */
-    sad.sin_family = AF_INET; /* set family to Internet */
+	port = atoi(argv[2]); /*convert to binary */
+	if (port > 0) /*test for legal value */
+		sad.sin_port = htons((u_short) port);
+	else{
+		fprintf(stderr, "Error: bad port number %s\n", argv[2]);
+		exit(EXIT_FAILURE);
+	}
 
+	host = argv[1]; /*if host argument specified */
 
-    if (argc != 3) {
-        fprintf(stderr, "Error: Wrong number of arguments\n");
-        fprintf(stderr, "usage:\n");
-        fprintf(stderr, "./client server_address server_port\n");
-        exit(EXIT_FAILURE);
-    }
+	/*Convert host name to equivalent IP address and copy to sad. */
+	ptrh = gethostbyname(host);
+	if (ptrh == NULL){
+		fprintf(stderr, "Error: Invalid host: %s\n", host);
+		exit(EXIT_FAILURE);
+	}
 
-    port = atoi(argv[2]); /* convert to binary */
-    if (port > 0) /* test for legal value */
-        sad.sin_port = htons((u_short) port);
-    else {
-        fprintf(stderr, "Error: bad port number %s\n", argv[2]);
-        exit(EXIT_FAILURE);
-    }
+	memcpy(&sad.sin_addr, ptrh->h_addr, ptrh->h_length);
 
-    host = argv[1]; /* if host argument specified */
+	/*Map TCP transport protocol name to protocol number. */
+	if (((long int)(ptrp = getprotobyname("tcp"))) == 0){
+		fprintf(stderr, "Error: Cannot map \"tcp\" to protocol number");
+		exit(EXIT_FAILURE);
+	}
 
-    /* Convert host name to equivalent IP address and copy to sad. */
-    ptrh = gethostbyname(host);
-    if (ptrh == NULL) {
-        fprintf(stderr, "Error: Invalid host: %s\n", host);
-        exit(EXIT_FAILURE);
-    }
+	/*Create a socket. */
+	sd = socket(PF_INET, SOCK_STREAM, ptrp->p_proto);
+	if (sd < 0){
+		fprintf(stderr, "Error: Socket creation failed\n");
+		exit(EXIT_FAILURE);
+	}
 
-    memcpy(&sad.sin_addr, ptrh->h_addr, ptrh->h_length);
+	/*Connect the socket to the specified server. */
+	if (connect(sd, (struct sockaddr *) &sad, sizeof(sad)) < 0){
+		fprintf(stderr, "connect failed\n");
+		exit(EXIT_FAILURE);
+	}
 
-    /* Map TCP transport protocol name to protocol number. */
-    if (((long int) (ptrp = getprotobyname("tcp"))) == 0) {
-        fprintf(stderr, "Error: Cannot map \"tcp\" to protocol number");
-        exit(EXIT_FAILURE);
-    }
-
-    /* Create a socket. */
-    sd = socket(PF_INET, SOCK_STREAM, ptrp->p_proto);
-    if (sd < 0) {
-        fprintf(stderr, "Error: Socket creation failed\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* Connect the socket to the specified server. */
-    if (connect(sd, (struct sockaddr *) &sad, sizeof(sad)) < 0) {
-        fprintf(stderr, "connect failed\n");
-        exit(EXIT_FAILURE);
-    }
-
-    participant(sd);
-    close(sd);
-    exit(EXIT_SUCCESS);
+	participant(sd);
+	close(sd);
+	exit(EXIT_SUCCESS);
 }
