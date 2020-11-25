@@ -44,14 +44,20 @@ void participant(int sd){
         return;
     }
 
-    char buf[100];
+    
     printf("Choose a username: ");
     fflush(stdout);
 
     while(1){
         if(poll(&mypoll, 1, timeout)){
+            
+            char *buf = NULL;
+            size_t length = 0;
+            getline(&buf, &length, stdin);
 
-            scanf("%s", buf);
+            if ((strlen(buf) > 0) && (buf[strlen (buf) - 1] == '\n')){
+                buf[strlen (buf) - 1] = '\0';
+            }
             
             if(checkWord(buf)){
 
@@ -96,6 +102,10 @@ void participant(int sd){
         char *message = NULL;
         size_t length = 0;
         getline(&message, &length, stdin);
+
+        if ((strlen(message) > 0) && (message[strlen (message) - 1] == '\n')){
+            message[strlen (message) - 1] = '\0';
+        }
 
         if(strlen(message) > 1000){
             //fragment message into sizes of 1000 MAX
