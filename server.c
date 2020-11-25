@@ -14,6 +14,9 @@
 #include <errno.h>
 #include <time.h>
 #include "trie.c"
+#include <errno.h>
+
+extern int errno ;
 
 //Constant for length and global word
 #define QLEN 6
@@ -28,22 +31,60 @@ typedef struct client{
     time_t time;
 } client;
 
-
-
-
 client participants[255];
 client observers[255];
 
-void participant_username(int index){
+char validateWord(char *word){
+	int len = strlen(word);
+
+	if (len < 1 || len > 10){
+		return 'I';
+	}
+
+	for (int i = 0; i < len; i++){
+		char letter = word[i];
+		if (!isalpha(letter) && letter != '_' && !isdigit(letter)){
+			return 'I';
+		}
+	}
+
+    for(int i = 0; i < 255; i++){
+        if(participants[i].active){
+            if(strcmp(word, participants[i].username) == 0){
+                return 'T';
+            }
+        }
+    }
+
+	return 'Y';
+}
+
+int receiveMessage(int index){
+    uint16_t length;
+    int retval = recv(participants[index].sd, &length, sizeof(uint16_t), MSG_WAITALL);
+    length = ntohs(length);
+
+    if(retval <= 0 || length > 1000){
+        return 0;
+    }
+}
+
+int participant_username(int index){
 
     uint8_t len;
     char username[255];
-    recv(participants[index].sd, &len, sizeof(uint8_t), MSG_WAITALL);
-    recv(participants[index].sd, username, len, MSG_WAITALL);
+    if(recv(participants[index].sd, &len, sizeof(uint8_t), MSG_WAITALL) == 0){
+        return 0;
+    }
+
+    if(recv(participants[index].sd, username, len, MSG_WAITALL) == 0){
+        return 0;
+    }
     username[len] = '\0';
 
-    //VALIDATE NAME
-    char validation = 'Y';//PUT STATUS HERE
+    printf("Got Username: %s", username);
+
+    char validation = validateWord(username);
 
     if(validation == 'Y'){
         send(participants[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
@@ -63,25 +104,34 @@ void participant_username(int index){
     snprintf(connect_message, 26, "User %s has joined", username);
     connect_message[strlen(connect_message)] = '\0';
     //SEND TO ALL
+    return 1;
 }
 
-void observer_username(int index){
+int observer_username(int index){
     uint8_t len;
     char username[255];
-    recv(observers[index].sd, &len, sizeof(uint8_t), MSG_WAITALL);
-    recv(observers[index].sd, username, len, MSG_WAITALL);
+
+    if(recv(observers[index].sd, &len, sizeof(uint8_t), MSG_WAITALL) == 0){
+        return 0;
+    }
+
+    if(recv(observers[index].sd, username, len, MSG_WAITALL) == 0){
+        return 0;
+    }
     username[len] = '\0';
+
+    printf("Got Username: %s", username);
     
-    char validation = 'Y';
-    //CHECK FOR INVALID RESPONSE
+    char validation = 'N';
 
     for(int i = 0; i < 255; i++){
-        if(strncmp(participants[i].username, username, 10)){
+        if(strcmp(participants[i].username, username) == 0){
             if(participants[i].connectedObserver){
                 validation = 'T';
                 break;
             }else{
                 participants[i].observerIndex = index;
+                participants[i].connectedObserver = 1;
                 validation = 'Y';
                 break;
             }
@@ -96,20 +146,20 @@ void observer_username(int index){
         
     }else if(validation == 'T'){
         send(observers[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
-        observers[index].time = time(NULL);
+        time(&observers[index].time );
 
-    }else if(validation == 'I'){
+    }else if(validation == 'N'){
         send(observers[index].sd, &validation, sizeof(char), MSG_NOSIGNAL);
-        close(observers[index].sd);
         observers[index].time = 0;
         observers[index].active = 0;
-        return;
+        return 0;
     }
 
-    char connect_message[25];
-    snprintf(connect_message, 25, "A new observer has joined");
-    connect_message[25] = '\0';
+    //char connect_message[26];
+    //snprintf(connect_message, 25, "A new observer has joined");
+    //connect_message[25] = '\0';
     //SEND TO ALL
+    return 1;
 }
 
 int participant_connect(int participant_sd){
@@ -118,8 +168,9 @@ int participant_connect(int participant_sd){
     struct sockaddr cad;
     socklen_t alen = sizeof(cad);
     int sd = accept(participant_sd, &cad, &alen);
+
     if(sd < 0){
-        fprintf(stderr,"Error: Accept failed");
+        fprintf(stderr,"Error: Participant Accept failed");
         close(sd);
         return -1;
     }
@@ -140,19 +191,13 @@ int participant_connect(int participant_sd){
         return -1;
     }
 
-    time_t current;
-    time(&current);
-
-    participants[i].time = (time_t)time;
+    time(&participants[i].time);
     participants[i].sd = sd;
     participants[i].active = 1;
 
     send(sd, &response, sizeof(char), 0);
     return sd;
-
 }
-
-
 
 int observer_connect(int observer_sd){
     char response = 'Y';
@@ -160,8 +205,9 @@ int observer_connect(int observer_sd){
     struct sockaddr cad;
     socklen_t alen = sizeof(cad);
     int sd = accept(observer_sd, &cad, &alen);
+
     if(sd < 0){
-        fprintf(stderr,"Error: Accept failed");
+        fprintf(stderr,"Error: Observer Accept failed");
         close(sd);
         return -1;
     }
@@ -182,10 +228,7 @@ int observer_connect(int observer_sd){
         return -1;
     }
 
-    time_t current;
-    time(&current);
-
-    observers[i].time = (time_t)time;
+    time(&observers[i].time);
     observers[i].sd = sd;
     observers[i].active = 1;
     send(sd, &response, sizeof(char), 0);
@@ -206,8 +249,8 @@ int main(int argc, char* argv[]){
     struct timeval tv;
 
     int max_fd;
-    fd_set readfds, writefds;
-    fd_set wrk_readfds, wrk_writefds;
+    fd_set readfds;
+    fd_set wrk_readfds;
 
     //Check # of arguments
     if(argc != 3){
@@ -218,8 +261,8 @@ int main(int argc, char* argv[]){
     }
 
     //Check if guess # is valid
-    uint8_t participant_port = atoi(argv[1]);
-    uint8_t observer_port = atoi(argv[2]);
+    int participant_port = atoi(argv[1]);
+    int observer_port = atoi(argv[2]);
 
     //clear sockaddr struct and set family & Ip address
     memset((char *)&participant_cad,0,sizeof(participant_cad)); 
@@ -229,6 +272,11 @@ int main(int argc, char* argv[]){
     participant_cad.sin_addr.s_addr = INADDR_ANY;
     observer_cad.sin_family = AF_INET; 
     observer_cad.sin_addr.s_addr = INADDR_ANY;
+
+    if(participant_port == observer_port){
+        fprintf(stderr,"Error: Don't use the same port for both participant and observer\n"); 
+        exit(EXIT_FAILURE);
+    }
 
     
     if (participant_port > 0) { 
@@ -245,11 +293,7 @@ int main(int argc, char* argv[]){
         exit(EXIT_FAILURE);
     } 
 
-    if(participant_port == observer_port){
-        fprintf(stderr,"Error: Bad port number %s\n",argv[2]); 
-        exit(EXIT_FAILURE);
-    }
-
+    
     //Map TCP transport protocol
     if ( ((long int)(ptrp = getprotobyname("tcp"))) == 0) { 
         fprintf(stderr, "Error: Cannot map \"tcp\" to protocol number"); 
@@ -282,12 +326,14 @@ int main(int argc, char* argv[]){
 
     //Bind local addr to socket
     if (bind(participant_sd, (struct sockaddr *)&participant_cad, sizeof(participant_cad)) < 0) { 
-        fprintf(stderr,"Error: Bind failed\n"); 
+        int errnum = errno;
+
+        fprintf(stderr, "Error: Participant Bind failed\n");
         exit(EXIT_FAILURE); 
     } 
     
     if (bind(observer_sd, (struct sockaddr *)&observer_cad, sizeof(observer_cad)) < 0) { 
-        fprintf(stderr,"Error: Bind failed\n"); 
+        fprintf(stderr,"Error: Observer Bind failed\n"); 
         exit(EXIT_FAILURE); 
     } 
 
@@ -312,8 +358,10 @@ int main(int argc, char* argv[]){
         participants[i].connectedObserver = 0;
         participants[i].active = 0;
         participants[i].hasUsername = 0;
+        participants[i].username = " ";
         observers[i].active = 0;
         observers[i].hasUsername = 0;
+        observers[i].username = " ";
     }
     
     //Main server loop
@@ -332,27 +380,32 @@ int main(int argc, char* argv[]){
             exit(EXIT_FAILURE);
 
         } else if (retval == 0){
-
+            printf("TIME CHECK\n");
             for(int i = 0; i < 255; i++){
 
                 time_t current;
                 time(&current);
-                if((participants[i].active) && (participants[i].time > 0) && (difftime(current, participants[i].time) > 60)){
-                    char message[25];
-                    snprintf(message, 24, "User %s has left", participants[i].username);
-                    //SEND TO ALL
-                    FD_CLR(participants[i].sd, &readfds);
-                    close(participants[i].sd);
-                    participants[i].sd = 0;
-                    participants[i].time = 0;
-                    participants[i].active = 0;
+                
+                if((participants[i].active) && (participants[i].time > 0)){
+                    if(difftime(current, participants[i].time) >= 60){
+                        printf("A participant timedout\n");
+                        FD_CLR(participants[i].sd, &readfds);
+                        close(participants[i].sd);
+                        participants[i].sd = 0;
+                        participants[i].time = 0;
+                        participants[i].active = 0;
+                    }
+                }
 
-                }else if((observers[i].active) && (observers[i].time > 0) && (difftime(current, observers[i].time) > 60)){
-                    FD_CLR(observers[i].sd, &readfds);
-                    close(observers[i].sd);
-                    observers[i].sd = 0;
-                    observers[i].time = 0;
-                    observers[i].active = 0;
+                if((observers[i].active) && (observers[i].time > 0)){
+                    if(difftime(current, observers[i].time) >= 60){
+                        printf("An observer timedout\n");
+                        FD_CLR(observers[i].sd, &readfds);
+                        close(observers[i].sd);
+                        observers[i].sd = 0;
+                        observers[i].time = 0;
+                        observers[i].active = 0;
+                    }
                 }
             }
         }
@@ -360,6 +413,7 @@ int main(int argc, char* argv[]){
         if(FD_ISSET(participant_sd, &wrk_readfds)){
             int code = participant_connect(participant_sd);
             if(code != -1){
+                FD_SET(code, &readfds);
                 max_fd = code > max_fd ? code : max_fd;
             }
         }
@@ -367,43 +421,70 @@ int main(int argc, char* argv[]){
         if(FD_ISSET(observer_sd, &wrk_readfds)){
             int code = observer_connect(observer_sd);
             if(code != -1){
+                FD_SET(code, &readfds);
                 max_fd = code > max_fd ? code : max_fd;
             }
         }
 
         //skip over the first 3 fds (stdin, stdout, stderr)
-        for(int i = 3; i < max_fd + 1; i++){
-
+        for(int i = 8; i < max_fd + 1; i++){
+            printf("sd: %d\n", i);
 
             //find index of existing participants/observers
-            int index;
-            int participant_flag = 0;
-            for(int j = 0; j < 255; j++){
-                if(participants[j].sd == i){
-                    index = j;
-                    participant_flag = 1;
-                    break;
-                }else if(observers[j].sd == i){
-                    index = j;
-                    break;
-                }
-            }
+            if(FD_ISSET(i, &wrk_readfds)){
 
-            if(participant_flag){
-                if(participants[index].hasUsername){
-                    //RECIEVE MESSAGE
-                }else{
-                    //GET USERNAME
-                    participant_connect(index);
+                printf("Inside for loop foreal\n");
+                int index;
+                int participant_flag = 0;
+                for(int j = 0; j < 255; j++){
+                    if(participants[j].sd == i){
+                        printf("Sd is a participant\n");
+                        index = j;
+                        participant_flag = 1;
+                        break;
+
+                    }else if(observers[j].sd == i){
+                        printf("Sd is an observer\n");
+                        index = j;
+                        break;
+                    }
                 }
-            }else{
-                if(observers[index].hasUsername){
-                    //ERROR, SHOULDN'T BE HERE
+
+                if(participant_flag){
+                    if(participants[index].hasUsername){
+                        printf("oh cool u wanna send something\n");
+                    }else{
+                        //GET USERNAME
+                        printf("PARTICIPANT USERNAME\n");
+                        if(!participant_username(index)){
+                            FD_CLR(participants[index].sd, &readfds);
+                            close(participants[index].sd);
+                            participants[index].sd = 0;
+                        }
+                    }
                 }else{
-                    //GET USERNAME
-                    observer_connect(index);
+
+                    if(observers[index].hasUsername){
+                        printf("OBSERVER DISCONNECTED");
+                        observers[index].username = " ";
+                        observers[index].active = 0;
+                        observers[index].hasUsername = 0;
+                        FD_CLR(observers[index].sd, &readfds);
+                        close(observers[index].sd);
+                        observers[index].sd = 0;
+
+                    }else{
+                        //GET USERNAME
+                        printf("OBSERVER USERNAME\n");
+                        if(!observer_username(index)){
+                            FD_CLR(observers[index].sd, &readfds);
+                            close(observers[index].sd);
+                            observers[index].sd = 0;
+                        }
+                    }
                 }
             }
+            
         }
     }
 }

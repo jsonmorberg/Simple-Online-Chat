@@ -70,8 +70,8 @@ void participant(int sd){
                 //send word to server and get response
 				uint8_t wordLength = strlen(buf);
 				buf[wordLength] = ' ';
-				send(sd, &wordLength, sizeof(uint8_t), 0);
-				send(sd, buf, wordLength, 0);
+				send(sd, &wordLength, sizeof(uint8_t), MSG_NOSIGNAL);
+				send(sd, buf, wordLength, MSG_NOSIGNAL);
 
 				if (recv(sd, &response, sizeof(char), 0) == 0){
 					return;
