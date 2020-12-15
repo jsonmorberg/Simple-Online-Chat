@@ -1,0 +1,34 @@
+Good work!
+
+Participant and observer codes almost perfectly. The issue seems to be with the server code. I couldn't test the server. Participants and observers would just hang. Scanning the code, looks like the server is ignoring the first 4 connections, based on the for loop initial condition on line 609 in the server
+
+608.  //skip over the first 3 fds (stdin, stdout, stderr)
+609.        for(int i = 8; i < max_fd + 1; i++){
+
+Changing that 8 to 3 caused segmentation fault. To make the code to partially work, I had to ignore the timer logic. See the linked screencast.
+
+
+https://asciinema.org/a/MKOMylL6T0Ic2lkS1oL4SaVrS
+
+Following table shows the breakdown of where points were deducted.
+
+
+
++------------+-----------------------------------------------------------------------------------------------------------------------------+----------------+
+| Category   | Test                                                                                                                        |   p3-arcticfox |
+|------------+-----------------------------------------------------------------------------------------------------------------------------+----------------|
+| Server     | Base case (reference participant and observer can connect to the server)                                                    |             -1 |
+| Server     | 1.1 Handles multiple participants                                                                                           |             -1 |
+| Server     | 1.2 Handles multiple observers                                                                                              |             -1 |
+| Server     | 1.3 Allows a new participant to take a username of a disconnected participant                                               |             -1 |
+| Server     | 2.6 Accepts a participant sending a valid not-taken username                                                                |             -1 |
+| Server     | 2.7 Handles a participant sending a username that is taken                                                                  |             -1 |
+| Server     | 2.9 Sends the participant-has-joined message                                                                                |             -1 |
+| Server     | 3.6 Handles observer sending a taken username                                                                               |             -1 |
+| Server     | 5.6 Delivers private message                                                                                                |             -1 |
+| Server     | 5.6 Uses specified private message format                                                                                   |             -1 |
+| Server     | Stress test1 (Test by sending many (50-100) short messages and having participants and observers disconnect and re-connect) |             -2 |
+| Server     | Stress test2 (Test that participants and their observers stay connected after sending long messages.)                       |             -2 |
+| Observer   | 6 Adds newline to message when needed                                                                                       |             -1 |
+| TOTAL      |                                                                                                                             |            -15 |
++------------+-----------------------------------------------------------------------------------------------------------------------------+----------------+
