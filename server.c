@@ -605,7 +605,7 @@ int main(int argc, char* argv[]){
         }
 
         //skip over the first 3 fds (stdin, stdout, stderr)
-        for(int i = 8; i < max_fd + 1; i++){
+        for(int i = 3; i < max_fd + 1; i++){
 
             //find index of existing participants/observers
             if(FD_ISSET(i, &wrk_readfds)){
